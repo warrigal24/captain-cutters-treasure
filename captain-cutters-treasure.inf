@@ -1,0 +1,4515 @@
+!% -~S
+!% $OMIT_UNUSED_ROUTINES=1
+!========================================
+! Captain Cutter's Treasure
+! Copyright © 2021 Garry Francis
+!========================================
+!Constant DEBUG;
+
+Constant Story "Captain Cutter's Treasure";
+#Ifv3;
+Constant Headline "^Copyright (c) 2021 Garry Francis^Type ABOUT for further info.^^";
+#Ifnot;
+Zcharacter table + '@{A9}'; !Add copyright symbol
+Constant Headline "^Copyright @{A9} 2021 Garry Francis^Type ABOUT for further info.^^";
+#Endif;
+
+Array UUID_ARRAY string "UUID://c60f3229-df66-4818-b3b0-6685bcb80d1c//";
+#Ifdef UUID_ARRAY;
+#Endif;
+
+Release 1;
+Serial "210503";
+
+Constant MAX_CARRIED = 10;
+Constant MAX_FLOATING_OBJECTS = 40;
+!Constant MAX_SCORE = 100;
+Constant NO_SCORE;
+
+! PunyInform constants
+Constant OPTIONAL_EXTENDED_VERBSET;
+Constant OPTIONAL_FULL_DIRECTIONS;
+Constant OPTIONAL_PRINT_SCENERY_CONTENTS;
+#Ifv5;
+Constant OPTIONAL_PROVIDE_UNDO;
+#Endif;
+Constant OPTIONAL_SHIP_DIRECTIONS;
+
+Include "globals.h";
+
+! PunyLib extensions
+!Include "ext_cheap_scenery.h";
+
+!========================================
+! Entry point routines
+!========================================
+[ DeathMessage;
+  if (deadflag == 3)
+    print "You have been caught";
+  if (deadflag == 4)
+    print "You could have done better";
+];
+
+!========================================
+! Custom library messages
+!========================================
+! Static strings
+Constant MSG_LISTEN_SUCCESS "All is quiet.";
+Constant MSG_SLEEP_DEFAULT "This is no time to be sleeping. You had enough of a snooze in the broom closet.";
+
+! Dynamic strings
+Constant MSG_CLOSE_NOT_OPEN 1000;
+Constant MSG_FILL_NO_WATER 1001;
+Constant MSG_OPEN_ALREADY 1002;
+Constant MSG_SEARCH_IN_IT_ISARE 1003;
+Constant MSG_SEARCH_ON_IT_ISARE 1004;
+
+[ LibraryMessages p_msg p_arg_1 p_arg_2;
+  switch (p_msg)
+  {
+    MSG_CLOSE_NOT_OPEN:
+      print_ret (CObjIs)noun, " already closed.";
+    MSG_FILL_NO_WATER:
+      if (noun hasnt container)
+        "You can only fill containers.";
+      else
+        "There's nothing here that's suitable for filling ", (the)noun, ".";
+    MSG_OPEN_ALREADY:
+      print_ret (CObjIs)noun, " already open.";
+    MSG_SEARCH_IN_IT_ISARE:
+      print (The)noun, " contains ";
+      if (PrintContents(0, noun))
+        print ".^";
+    MSG_SEARCH_ON_IT_ISARE:
+      print (The)noun, " holds ";
+      if (PrintContents(0, noun))
+        print ".^";
+  }
+  p_arg_1 = p_arg_2;
+];
+
+Include "puny.h";
+
+! More PunyLib extensions
+!Include "ext_waittime.h";
+
+Global crate_location;
+Global third;
+
+Attribute legible;
+
+!========================================
+! Initialisation
+!========================================
+[ Initialise;
+  move tinderbox to player;
+  player.description = "Your name is Jim. You live in the nearby town and walk to the waterfront every morning to work at The Red Anchor.";
+  ship_directions_enabled = false;
+  location = room01;
+  "You wake up feeling groggy. Your head hurts.^^~Blimey. What happened?~^^You run your fingers through your hair and feel a nasty bump on the back of your head. The last thing you remember was sweeping the floor in the pub before the early morning patrons started arriving. You look around.^^~What the hell am I doing in the broom closet?~";
+];
+
+!========================================
+! Inventory
+!========================================
+!----------------------------------------
+! Tinderbox
+!----------------------------------------
+Object tinderbox "tinderbox"
+with
+  name 'tinderbox',
+  description "It's a small metal box engraved 'From Mum'. It contains flint, steel and tinder. You use it for lighting the fire and the lamps in The Red Anchor when the sun goes down.",
+  before
+  [;
+    Burn:
+      "You use the tinderbox for lighting other things. You can't use it to light itself.";
+    Drop, Insert, PutOn, Transfer:
+      "No way! Your mother gave you that tinderbox. It has sentimental value and you keep it with you wherever you go.";
+    Empty, EmptyT:
+      "If you empty the contents of the tinderbox, then it won't be a tinderbox any more.";
+    Open, Search:
+      <<Examine self>>;
+  ],
+has;
+
+!========================================
+! Room 1: Broom Closet
+!========================================
+Object room01 "Broom Closet"
+with
+  description "You're in the rather dirty broom closet of The Red Anchor. Various cleaning appliances line the walls. There's a pile of fabric in a corner.",
+  e_to closet_door,
+  out_to closet_door,
+  before
+  [;
+    Exit:
+      if (noun == nothing)
+        <<Go FAKE_OUT_OBJ>>;
+    Smell:
+      "It smells musty.";
+  ],
+has light;
+
+!----------------------------------------
+! Broom closet
+!----------------------------------------
+Object "broom closet" room01
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'broom' && NextWord() == 'closet')
+      return 2;
+    if (nw == 'closet')
+      return 1;
+    return 0;
+  ],
+  before
+  [;
+    Exit:
+      <<Go FAKE_E_OBJ>>;
+  ],
+  description "It's a cramped broom closet. There's barely room to move.",
+has scenery;
+
+!----------------------------------------
+! Cleaning appliances
+!----------------------------------------
+Object "cleaning appliances" room01
+with
+  parse_name
+  [ i;
+    while(NextWord() == 'cleaning' or 'appliance' or 'appliances//p' or 'brush' or 'brushes//p' or 'pan' or 'pans//p' or 'mop' or 'mops//p' or 'bucket' or 'buckets//p' or 'wall' or 'walls//p' or 'corner')
+      i++;
+    return i;
+  ],
+  description "The walls are lined with an assortment of brushes, pans, mops and buckets, but, strangely, no brooms.",
+  before
+  [;
+    Take:
+      "This is no time to be thinking about cleaning.";
+  ],
+has pluralname scenery;
+
+!----------------------------------------
+! Brooms
+!----------------------------------------
+Object "broom" room01
+with
+  name 'broom' 'brooms//p',
+  description "Interestingly, there are no brooms in the broom closet.",
+has scenery;
+
+!----------------------------------------
+! Pile of fabric
+!----------------------------------------
+Object fabric "pile of fabric" room01
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'pile')
+      if (NextWord() == 'of' && NextWord() == 'fabric')
+        return 3;
+      else
+        return 1;
+    if (nw == 'fabric')
+      if (NextWord() == 'pile')
+        return 2;
+      else
+        return 1;
+    return 0;
+  ],
+  description "It's just a pile of dusty old fabric. It's probably not important.",
+  before
+  [;
+    Burn:
+      "If you burn the pile of fabric, there's a very good chance that you'll burn down the pub, so you decide against it.";
+    LookUnder, Search:
+      if (bag in nothing)
+      {
+        move bag to location;
+        "You look under the fabric and find a calico bag.";
+      }
+    Pull:
+      if (bag in nothing)
+      {
+        move bag to location;
+        "You pull the fabric aside and find a calico bag.";
+      }
+    Push:
+      if (bag in nothing)
+      {
+        move bag to location;
+        "You push the fabric aside and find a calico bag.";
+      }
+    Take:
+      "You can push it or pull it or look under it, but it's too bulky to lug around with you.";
+  ],
+has scenery;
+
+!----------------------------------------
+! Calico bag
+!----------------------------------------
+Object bag "calico bag"
+with
+  name 'calico' 'bag',
+  description
+  [;
+    print "It's a light brown calico bag. ";
+    <<Search self>>;
+  ],
+  before
+  [;
+    Empty:
+      if (children(self) == 0)
+        "It's already empty.";
+      if (child(self) == pebbles && location == room05)
+      {
+        move pebbles to location;
+        give pebbles concealed;
+        "You empty out the bag and the pebbles are back on the path where they came from.";
+      }
+      move child(self) to location;
+      "You empty out the bag.";
+    EmptyT:
+      if (children(self) == 0)
+        "It's already empty.";
+      if (second hasnt container && second hasnt supporter)
+        "You can only empty it into another container or onto a supporter.";
+      if (children(second) > 0)
+        "You'll have to empty ", (the)second, " first.";
+      move child(self) to second;
+      print "You empty the calico bag ";
+      if (second has container)
+        print "into ";
+      else
+        print "onto ";
+      print_ret (the)second, ".";
+    Fill:
+      if (children(self) > 0)
+        "There's already ", (a)child(self), " in the calico bag.";
+      if (TestScope(pebbles) && TestScope(coins))
+        "You need to tell me whether to fill it with the pebbles or the coins.";
+      if (TestScope(pebbles))
+      {
+        print "(with the pebbles)^";
+        <<Insert pebbles self>>;
+      }
+      if (TestScope(coins))
+      {
+        print "(with the coins)^";
+        <<Insert coins self>>;
+      }
+      "You need to tell me what to fill it with.";
+    LetGo:
+      if (noun == pebbles or coins)
+      {
+        if (noun.number == 1)
+          print "It slips";
+        else
+          print "They slip";
+        print " through your fingers back into the bag. If you want to take ";
+        if (noun.number == 1)
+          print "it";
+        else
+          print "them";
+        " out, you'll have to empty the bag.";
+      }
+    Receive:
+      if (children(self) > 0)
+        "There's already ", (a)child(self), " in the calico bag.";
+      if (noun ~= pebbles or coins)
+        "The calico bag isn't really suitable for carrying ", (the)noun, ".";
+    Weigh:
+      if (scale in player)
+        "You need to put the scale on a solid surface.";
+      if (scale notin location)
+        "You can't see anything to weigh it with.";
+      if (bag in scale)
+      {
+        print "It weighs ";
+        if (children(self) == 0)
+          "practically nothing.";
+        print_ret child(self).number * child(self).capacity / 100,".", child(self).number * child(self).capacity % 100, " ounces.";
+      }
+      <<PutOn self scale>>;
+  ],
+  after
+  [;
+    Take:
+      if (mouse_hole in nothing)
+      {
+        move mouse_hole to location;
+        move mouse to location;
+        "When you pick up the calico bag, you find that it was stuffed in a mouse hole to keep the mouse out of the broom closet.";
+      }
+  ],
+has container open;
+
+!----------------------------------------
+! Mouse hole
+!----------------------------------------
+Object mouse_hole "mouse hole"
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'mouse' && NextWord() == 'hole')
+      return 2;
+    if (nw == 'hole' or 'mousehole')
+      return 1;
+    return 0;
+  ],
+  description
+  [;
+    if (~~(IndirectlyContains(location, lamp) && lamp has light))
+      "It's too dark to see what's inside in the dim light of the closet. You need a brighter light.";
+    print "Using the light of the oil lamp, you peer inside the mouse hole";
+    if (brass_key in nothing)
+    {
+      move brass_key to location;
+      " and see a glint of metal. You reach in and drag it out to discover that it's a small brass key.";
+    }
+    ", but don't find anything else.";
+  ],
+  before
+  [;
+    ReachIn, Search:
+      "No way. There might be a mouse in there.";
+  ],
+has static;
+
+!----------------------------------------
+! Mouse
+!----------------------------------------
+Object mouse "mouse"
+with
+  name 'mouse',
+  description "You can't see any mouse anywhere. Maybe it's in the mouse hole.",
+has scenery;
+
+!----------------------------------------
+! Brass key
+!----------------------------------------
+Object brass_key "brass key"
+with
+  name 'brass' 'key',
+  description "It's a small brass key, about two inches long.",
+  before
+  [;
+    Take:
+      if (self in cutter)
+        "If you take the key, the captain will certainly know that he's been robbed. You would would need to replace it with a similar key.";
+    Swap:
+      if (gold_key notin cutter)
+        "You've already done that.";
+      if (cutter hasnt general)
+        "You can't do that while he's awake.";
+      if (second == nothing && gold_key in cutter)
+      {
+        print "(with the gold key)^";
+        <<Swap self gold_key>>;
+      }
+      if (second == nothing)
+        "You have nothing to swap it with.";
+      if (second ~= gold_key)
+        "You can't swap the brass key with ", (the)second, ", as they aren't similar.";
+      move brass_key to cutter;
+      move gold_key to player;
+      "You carefully remove the gold key from around the captain's neck, being careful not to wake him, and replace it with the brass key. They're a pretty close match.";
+  ],
+has;
+
+!----------------------------------------
+! Knife
+!----------------------------------------
+Object knife "knife" room01
+with
+  name 'knife' 'handle' 'blade',
+  initial "A note has been fixed to the wall with a knife.",
+  description
+  [;
+    print "It's a bone-handled knife with a tarnished steel blade.";
+    if (self hasnt moved)
+      print " It pins a note to the wall.";
+    "";
+  ],
+  after
+  [;
+    Take:
+      if (note hasnt moved)
+      {
+        give note ~concealed moved;
+        "As you pull the knife out of the wall, the note falls to the floor.";
+      }
+  ],
+has;
+
+!----------------------------------------
+! Note
+!----------------------------------------
+Object note "note" room01
+with
+  name 'note',
+  description "There's something written on it.",
+  before
+  [;
+    Burn:
+      if (self hasnt moved)
+        "If you burn the note while it's pinned to the wall, there's a very good chance that you'll burn down the pub, so you decide against it.";
+      if (self hasnt general)
+        "You should read it before you burn it.";
+      move note to limbo;
+      "You strike the steel on the flint and the sparks light the tinder. You then light the note and blow the tinder out. The note quickly turns to ash.";
+    Read:
+      print "It says, 'Return me treasure by sunset or the girl gets it. - Cutter'.";
+      if (self hasnt general)
+      {
+        give self general;
+        print "^^Treasure? What treasure? What girl? Who or what is Cutter? What's going on here?";
+      }
+      "";
+    Take:
+      if (knife hasnt moved)
+        "You can't. It's pinned to the wall.";
+  ],
+has concealed legible;
+
+!----------------------------------------
+! Closet door
+!----------------------------------------
+Object closet_door "closet door"
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'closet' && NextWord() == 'door')
+      return 2;
+    if (nw == 'door')
+      return 1;
+    return 0;
+  ],
+  description
+  [;
+    print "It's a crude wooden door with rusty iron hinges. It's currently ";
+    if (self has open)
+      "open.";
+    else
+      "closed.";
+  ],
+  when_closed
+  [;
+    if (self in room01)
+      "The pub lies beyond the closed door to the east.";
+    else
+      "There's a closed door to the west.";
+  ],
+  when_open
+  [;
+    if (self in room01)
+      "You can see the pub through the closet door to the east.";
+    else
+      "The door to the west is open, revealing a broom closet.";
+  ],
+  door_dir
+  [;
+    if (self in room01)
+      return e_to;
+    else
+      return w_to;
+  ],
+  door_to
+  [;
+    if (self in room01)
+      return room02;
+    else
+      return room01;
+  ],
+  found_in room01 room02,
+has door openable static;
+
+!----------------------------------------
+! Rusty iron hinges
+!----------------------------------------
+Object "rusty iron hinges"
+with
+  name 'rusty' 'iron' 'hinge' 'hinges//p',
+  found_in
+  [;
+    if (location == room01 or room04 or room09 or room27 or room28)
+      rtrue;
+  ],
+has scenery;
+
+!========================================
+! Room 2: Inside The Red Anchor
+!========================================
+Object room02 "Inside The Red Anchor"
+with
+  description "This is The Red Anchor, the pub where you work. Everything's in a mess. Most of the stools are knocked over, and some of the tables are upturned. Harold, the owner, is lying on the floor. Brenda, the waitress, is nowhere to be seen. The only exits are south and west, or you can go east to leave the pub.",
+  s_to room03,
+  e_to room04,
+  out_to room04,
+  w_to closet_door,
+  in_to closet_door,
+  before
+  [;
+    Exit:
+      if (noun == nothing)
+        <<Go FAKE_OUT_OBJ>>;
+    Smell:
+      "You smell the faint, familiar aroma of ale and rum.";
+  ],
+  after
+  [;
+    Go:
+      if (brenda in location)
+      {
+        print "When you walk into The Red Anchor, Harold is back on his feet. ~Brenda!~^^~Daddy!~ Brenda rushes into Harold's arms and gives him a big hug. You detect a tear running down Harold's cheek.^^Congratulations, Jim. You have reunited Brenda with her father";
+        if (TestScope(coins))
+        {
+          deadflag = 2;
+          print " and returned with Captain Cutter's stolen treasure. The captain ain't gonna be happy when he finds out! You will be able to use the treasure";
+        }
+        else
+        {
+          deadflag = 4;
+          print ", but you didn't return with Captain Cutter's treasure. You could have used it";
+        }
+      " to repair the damages to The Red Anchor and replace the stolen rum and still have some left over for a tidy little nest egg.";
+      }
+  ],
+has light;
+
+!----------------------------------------
+! The Red Anchor pub
+!----------------------------------------
+Object "The Red Anchor pub" room02
+with
+  name 'red' 'anchor' 'pub',
+  description "It looks like there's been a brawl in here, except that you know it's too early for any patrons.",
+  before
+  [;
+    Exit:
+      <<Go FAKE_E_OBJ>>;
+  ],
+has proper scenery;
+
+!----------------------------------------
+! Stools
+!----------------------------------------
+Object "stools" room02
+with
+  name 'stool' 'stools//p' 'chair' 'chairs//p',
+  description "They're plain wooden stools, sturdy and functional.",
+has pluralname scenery;
+
+!----------------------------------------
+! Tables
+!----------------------------------------
+Object "tables" room02
+with
+  name 'table' 'tables//p',
+  description "They're solid wooden tables showing many scratches and stains from years of use.",
+has pluralname scenery;
+
+!----------------------------------------
+! Floor
+!----------------------------------------
+Object "floor" room02
+with
+  name 'floor',
+  describe
+  [;
+    rtrue;
+  ],
+  description "This is the floor you were sweeping before you got knocked on the head.",
+  before
+  [;
+    Rub:
+      if (broom notin player)
+        "You would need a broom to do that.";
+      "That can wait until later. The last time you swept the floor, you got hit over the head.";
+  ],
+has static;
+
+!----------------------------------------
+! Harold, the pub owner
+!----------------------------------------
+Object harold "Harold" room02
+with
+  name 'harold' 'owner',
+  description "He looks like he's been beaten up pretty badly. He's bleeding from a head wound, but he's still conscious.",
+  life
+  [;
+    Ask:
+      switch (second)
+      {
+        'brenda', 'daughter', 'girl':
+          "~I don' want them pirates 'avin' their way with 'er. You get 'er back! She's the only daughter I've got.~";
+        'captain', 'cutter':
+          "~'e's a bloody cutthroat pirate is what 'e is. I 'aven't told ya before, but I used to be one of 'is crew. 'e got me an' Samuel an Isaac to 'ide some of 'is treasure 'ere abouts. Now 'e wants it back.~";
+        'harold', 'himself':
+          "~It's been a 'ard life Jim. Piratin' on the seven seas, then workin' a pub while bringin' up a daughter. Now Cutter's gone an' taken 'er from me.~";
+        'isaac':
+          "~'e runs the light'ouse nowadays. You'll find 'im there.~";
+        'jerome':
+          "~Jerome owns the ware'ouse. You can usually find 'im there.~";
+        'jim', 'me', 'myself', 'self':
+          "~You're a good lad Jim. 'ard workin' an' clean livin', not like them pirate scum. But you try an' get Brenda back.~";
+        'pirate', 'pirates//p':
+          "~There was quite a few of 'em. All as ugly as 'orses' bum 'oles.~";
+        'samuel':
+          "~You know 'im. 'e's one o' the regulars. 'e should be aroun' 'ere somewhere.~";
+        'treasure':
+          "~I dunno where it is. Samuel an' Isaac 'id it. You'll 'ave to ask them.~";
+        default:
+          "Harold winces, as if he's in pain. Perhaps ask him about something else.";
+      }
+    Give:
+      "~What am I s'posed to do with that? The only thing I want at the moment, is me little girl.~";
+    Help:
+      "You tend to Harold's wound, but there's not much you can do without any bandages. He smiles and says, ~Thanks, Jim. You're a good lad.~";
+    Talk:
+      if (self has general)
+        "~Don't worry 'bout me, boy. I'll be right. You just get Brenda back.~";
+      give self general;
+      "~Ah, Jim me lad. You're okay. I saw 'em 'it ya on the noggin and drag ya into the broom closet. I thought ya was dead.~ That explains the bump on the head. ~It was Cap'n Cutter 'n' 'is crew what did it. They stole all the rum an' took Brenda. 'e's 'oldin' 'er til 'e gets 'is treasure back.~";
+  ],
+has animate proper;
+
+!----------------------------------------
+! Broom
+!----------------------------------------
+Object broom "broom" room02
+with
+  name 'broom',
+  description "This is the broom you were using to sweep the floor of the pub before you found yourself in the broom closet.",
+has;
+
+!========================================
+! Room 3: Storeroom
+!========================================
+Object room03 "Storeroom"
+with
+  description
+  [;
+    print "This is where Harold stores the alcohol. The walls are lined with kegs of ale, but the boxes of bottled rum have been taken. ";
+    if (bottle hasnt moved)
+      print "There's just one bottle left lying on the floor. ";
+    "The exit is to the north.";
+  ],
+  n_to room02,
+  out_to room02,
+  before
+  [;
+    Exit:
+      if (noun == nothing)
+        <<Go FAKE_OUT_OBJ>>;
+    Smell:
+      "The smell of ale is quite strong in here. It's no doubt coming from the kegs.";
+  ],
+has light;
+
+!----------------------------------------
+! Walls
+!----------------------------------------
+Object "walls" room03
+with
+  name 'wall' 'walls//p' 'storeroom',
+  description "The walls are lined with kegs of ale.",
+has pluralname scenery;
+
+!----------------------------------------
+! Kegs of ale
+!----------------------------------------
+Object "kegs of ale" room03
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'keg' or 'kegs//p')
+      if (NextWord() == 'of' && NextWord() == 'ale' or 'beer' or 'alcohol')
+        return 3;
+      else
+        return 1;
+    if (nw == 'ale' or 'beer' or 'alcohol')
+      if (NextWord() == 'keg' or 'kegs//p')
+        return 2;
+      else
+        return 1;
+    return 0;
+  ],
+  description "Harold is very organised. When looking in from the doorway, the full kegs are on the left and the empty kegs are on the right.",
+  before
+  [;
+    Pull, Push, Take:
+      "They're far too heavy to move by yourself.";
+  ],
+has pluralname scenery;
+
+!----------------------------------------
+! Boxes of bottled rum
+!----------------------------------------
+Object "boxes of bottled rum" room03
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'box' or 'boxes//p')
+      if (NextWord() == 'of' && NextWord() == 'rum' or 'alcohol')
+        return 3;
+      else
+        return 1;
+    if (nw == 'rum')
+      if (NextWord() == 'box' or 'boxes//p')
+        return 2;
+      else
+        if (~~(TestScope(bottle)))
+          return 1;
+    return 0;
+  ],
+  description "The boxes of rum have been stolen.",
+has scenery;
+
+!----------------------------------------
+! Bottle of rum
+!----------------------------------------
+Object bottle "bottle of rum" room03
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'bottle')
+      if (NextWord() == 'of' && NextWord() == 'rum')
+        return 3;
+      else
+        return 1;
+    if (nw == 'rum')
+      if (NextWord() == 'bottle')
+        return 2;
+      else
+        return 1;
+    return 0;
+  ],
+  description "It's a bottle of unadulterated, pot-stilled Jamaican rum. Harold never buys any of the grog that the British Royal Navy uses, because it's mixed with sugar, lime and water.",
+  before
+  [;
+    Drink:
+      "You don't drink. You've seen what a mess it makes of those poor sailors that drink in The Red Anchor.";
+  ],
+has;
+
+!========================================
+! Room 4: Outside The Red Anchor
+!========================================
+Object room04 "Outside The Red Anchor"
+with
+  description "You're on the waterfront outside The Red Anchor. A light breeze is blowing in from the harbour to the east, causing the sign above the pub to swing on its hinges. A wide cobblestone path heads north and south, or you can enter the pub to the west.",
+  n_to room06,
+  s_to room05,
+  e_to "Don't be silly. The water in the harbour is cold and wet and you can't swim.",
+  w_to room02,
+  in_to room02,
+  before
+  [;
+    Listen:
+      "You hear the squeaking of the sign overhead and the sound of waves lapping against the seawall.";
+    Smell:
+      "You smell the salty seawater from the harbour.";
+    Swim:
+      "The water in the harbour is cold and wet and you can't swim.";
+  ],
+has light;
+
+!----------------------------------------
+! Waterfront
+!----------------------------------------
+Object "waterfront"
+with
+  name 'waterfront',
+  article "the",
+  description "The waterfront surrounds the harbour in a broad arc. It's quiet at the moment, because there's only one ship in the harbour.",
+  found_in room04 room06 room08 room23,
+has scenery;
+
+!----------------------------------------
+! Harbour
+!----------------------------------------
+Object "harbour"
+with
+  parse_name
+  [ i;
+    while(NextWord() == 'harbour' or 'harbor' or 'seawater' or 'water' or 'sea' or 'ocean')
+      i++;
+    return i;
+  ],
+  article "the",
+  description "It's a small harbour, bounded by a dock to the north and a lighthouse beyond that.",
+  before
+  [;
+    Enter:
+      <<Swim>>;
+  ],
+  found_in
+  [;
+    if (location == room04 or room06 or room08 or room23 or room24)
+      rtrue;
+  ],
+has scenery;
+
+!----------------------------------------
+! Seawall
+!----------------------------------------
+Object "seawall"
+with
+  name 'seawall',
+  description "The seawall is made of stone and follows an arc around the edge of the harbour.",
+  found_in room04 room06 room08,
+has scenery;
+
+!----------------------------------------
+! Lighthouse
+!----------------------------------------
+Object "lighthouse"
+with
+  name 'lighthouse',
+  description "You can't see it clearly from this distance, but you can tell that it's painted white.",
+  found_in room04 room06 room08 room23,
+has scenery;
+
+!----------------------------------------
+! Dock
+!----------------------------------------
+Object "dock"
+with
+  name 'dock',
+  description "You can't see it clearly from this distance, but you know that's where the ships load and unload.",
+  found_in room04 room06 room08,
+has scenery;
+
+!----------------------------------------
+! Ship
+!----------------------------------------
+Object ship "ship"
+with
+  name 'ship',
+  description
+  [;
+    print "There's only one ship in the harbour at the moment and ";
+    if (self has general)
+      "it looks like it's getting ready to sail.";
+    else
+     "its sails are furled.";
+  ],
+  found_in room04 room06 room08 room23,
+has scenery;
+
+!----------------------------------------
+! The Red Anchor pub
+!----------------------------------------
+Object "The Red Anchor" room04
+with
+  name 'red' 'anchor' 'pub',
+  description "That's the pub where you work. It's very popular with the sailors, because it's the only pub on the waterfront.",
+  before
+  [;
+    Enter:
+      <<Go FAKE_IN_OBJ>>;
+  ],
+has proper scenery;
+
+!----------------------------------------
+! Sign
+!----------------------------------------
+Object "sign" room04
+with
+  name 'sign',
+  description "It hangs above the entrance to the pub and is currently swaying in the breeze.",
+  before
+  [;
+    Read:
+      "There's nothing written on it because most sailors can't read. It's just got a crude painting of a red anchor.";
+  ],
+has scenery;
+
+!----------------------------------------
+! Cobblestone path
+!----------------------------------------
+Object "cobblestone path"
+with
+  name 'cobblestone' 'cobblestones//p' 'path',
+  description "The path is paved in cobblestones to prevent rutting from the heavily-laden wagons that carry goods between the waterfront and the town.",
+  found_in room04 room05 room06 room08,
+has scenery;
+
+!========================================
+! Room 5: Path to Town
+!========================================
+Object room05 "Path to Town"
+with
+  description "This is the heavily-travelled path between the town and the waterfront. The path southwest to town is covered in loose pebbles, whereas the path north to the waterfront is made from cobblestone.",
+  n_to room04,
+  sw_to "It's a long walk to town. You'd better not waste time going that way, as your goal lies somewhere around the waterfront.",
+  before
+  [;
+    Listen:
+      "You can still hear the sound of waves lapping against the seawall, but it is much fainter here.";
+    Smell:
+      "You can no longer smell the salty seawater of the harbour.";
+  ],
+has light;
+
+!----------------------------------------
+! Path
+!----------------------------------------
+Object "path" room05
+with
+  name 'path',
+  description "The path to the north is paved in cobblestone. The path to the southwest is covered in pebbles.",
+has scenery;
+
+!----------------------------------------
+! Town
+!----------------------------------------
+Object "town" room05
+with
+  name 'town' 'waterfront',
+  article "the",
+  description "You can't see it from here.",
+has scenery;
+
+!----------------------------------------
+! Bulk pebbles
+!----------------------------------------
+Object "pebbles" room05
+with
+  parse_name
+  [ i;
+    if (TestScope(pebbles) && pebbles hasnt concealed)
+      return 0;
+    while (NextWord() == 'pebble' or 'pebbles//p' or 'stone' or 'stones//p' or 'gravel')
+      i++;
+    return i;
+  ],
+  description "There are lots of loose pebbles covering the path.",
+  before
+  [;
+    Insert:
+      if (second == bag && children(bag) > 0)
+        "The bag is already full of ", (name)child(bag), ".";
+      if (second == chest && chest hasnt open)
+        "The chest is closed.";
+      if (second == chest && children(chest) > 0)
+        "The chest is already full of ", (name)child(chest), ".";
+      if (location == room05 && pebbles hasnt concealed)
+        "You've already taken some pebbles.";
+      if (location == room05)
+      {
+        move pebbles to second;
+        give pebbles ~concealed;
+        pebbles.number = 48;
+        "You fill ", (the)second, " with pebbles. It's quite heavy. You can count and remove a specific number of pebbles if you need to.";
+      }
+    Take:
+      if (pebbles notin room05)
+        "You've already taken some pebbles.";
+      "They're too awkward to carry. You need to put them in a bag or container.";
+  ],
+has pluralname scenery;
+
+!----------------------------------------
+! Pebbles
+!----------------------------------------
+Object pebbles "pebbles" room05
+with
+  parse_name
+  [ i;
+    if (self has concealed)
+      return 0;
+    while (NextWord() == 'pebble' or 'pebbles//p' or 'stone' or 'stones//p' or 'gravel')
+      i++;
+    return i;
+  ],
+  description "These are the pebbles you took from the path to town. They are fairly uniform in size and weight.",
+  invent
+  [;
+    if (inventory_stage == 1)
+    {
+      print self.number, " pebble";
+      if (self.number ~= 1)
+        print "s";
+      rtrue;
+    }
+  ],
+  before
+  [;
+!    Drop:
+!      if (IndirectlyContains(location, bag))
+!        <<Empty bag>>;
+    Insert:
+      if (second == bag && children(bag) > 0)
+        "The bag is already full of ", (name)child(bag), ".";
+      if (second == chest && chest hasnt open)
+        "The chest is closed.";
+      if (second == chest && children(chest) > 0)
+        "The chest is already full of ", (name)child(chest), ".";
+      if (location == room05 && self hasnt concealed)
+        "You've already taken some pebbles.";
+      if (location == room05)
+      {
+        move pebbles to second;
+        give pebbles ~concealed;
+        pebbles.number = 48;
+        "You fill ", (the)second, " with pebbles. It's quite heavy. You can count and remove a specific number of pebbles if you need to.";
+      }
+      move pebbles to second;
+      "You put the pebbles in ", (the)second, ".";
+    PutOn:
+      if (scale in player)
+        "You need to put the scale on a solid surface.";
+      if (second == scale && children(scale) > 0)
+        "The scale already has ", (name)child(scale), " on it.";
+      move self to second;
+      print "You put the pebble";
+      if (pebbles.number ~= 1)
+        print "s";
+      print " on the scale. ";
+      if (pebbles.number == 1)
+        print "It weighs ";
+      else
+        print "They weigh ";
+      print_ret child(scale).number * child(scale).capacity / 100,".", child(scale).number * child(scale).capacity % 100, " ounces.";
+    Remove:
+      "You'll have to tell me how many pebbles to remove.";
+    Take:
+      if (self in bag)
+        "They're too awkward to carry. You need to leave them in the bag or empty it.";
+      if (self in chest)
+        "They're too awkward to carry. You need to leave them in the chest or empty it.";
+      "They're too awkward to carry. You need to put them in a bag or container.";
+    Weigh:
+      if (scale in player)
+        "You need to put the scale on a solid surface.";
+      if (scale notin location)
+      {
+        print "You can't see anything to weigh ";
+        if (pebbles.number == 1)
+          print "it";
+        else
+          print "them";
+        " with.";
+      }
+      if ((bag in scale && pebbles in bag) || pebbles in scale)
+      {
+        if (pebbles.number == 1)
+          print "It weighs ";
+        else
+          print "They weigh ";
+        print_ret child(bag).number * child(bag).capacity / 100,".", child(bag).number * child(bag).capacity % 100, " ounces.";
+      }
+      if (bag in player && pebbles in bag)
+        <<PutOn bag scale>>;
+      <<PutOn self scale>>;
+  ],
+  after
+  [;
+    RemoveNumber:
+      print "You remove ";
+      if (noun == 1)
+        print "one pebble";
+      else
+        print noun, " pebbles";
+      print " from the calico bag and throw ";
+      if (noun == 1)
+        print "it";
+      else
+        print "them";
+      if (location == room05)
+      {
+        print " back on the path where ";
+        if (noun == 1)
+          print "it belongs.";
+        else
+          print "they belong.";
+      }
+      else
+        print " away.";
+      if (self.number == 0)
+      {
+        move pebbles to room05;
+        give pebbles concealed;
+      }
+      if (scale in location && bag in scale)
+        print " The bag now weighs ", child(bag).number * child(bag).capacity / 100,".", child(bag).number * child(bag).capacity % 100, " ounces.";
+      "";
+  ],
+  number 48,
+  capacity 125,
+has concealed pluralname;
+
+!========================================
+! Room 6: Waterfront
+!========================================
+Object room06 "Waterfront"
+with
+  description
+  [;
+    if (self hasnt visited)
+      StartDaemon(self);
+    "You're on the waterfront overlooking the harbour to the east. The cobblestone path continues to the north and south and a narrow alleyway is to the west.";
+  ],
+  n_to room08,
+  s_to room04,
+  e_to "Don't be silly. The water in the harbour is cold and wet and you can't swim.",
+  w_to room07,
+  in_to room07,
+  before
+  [;
+    Listen:
+      "You hear the sound of waves lapping against the seawall.";
+    Smell:
+      "You smell the salty seawater from the harbour.";
+    Swim:
+      "The water in the harbour is cold and wet and you can't swim.";
+  ],
+  daemon
+  [;
+    if (self.time_left == 0)
+      print "^You hear singing coming from the alley.";
+    self.time_left++;
+    if (self.time_left == 9)
+      self.time_left = 1;
+    if (player in room06 or room07 && samuel hasnt general)
+    {
+      switch (self.time_left)
+      {
+        1: print "^~Louis was the king of France^Before the revolution";
+        2: print "^~But then he got his head chopped off^Which spoiled his constitution";
+        3: print "^~Once I was in Ireland^Digging turf and praties";
+        4: print "^~And now I'm on a Yankee ship^Hauling on sheets and braces";
+        5: print "^~Now when I was a little boy^And so me mother told me";
+        6: print "^~That if I didn't kiss the girls^Me lips would all grow mouldy";
+        7: print "^~Way, haul away^We'll haul away the bowline";
+        8: print "^~Way, haul away^The packet is a-rollin'";
+      }
+      print "^Away, haul away, we'll haul away Joe~^";
+    }
+  ],
+  time_left 0,
+has light;
+
+!----------------------------------------
+! Alley
+!----------------------------------------
+Object "alley" room06
+with
+  name 'alley' 'alleyway',
+  article "an",
+  description "You can see that it's quite narrow.",
+has scenery;
+
+!========================================
+! Room 7: Alley
+!========================================
+Object room07 "Alley"
+with
+  description "You're in a narrow alleyway between a large warehouse to the north and The Red Anchor to the south. It smells of stale urine and vomit. The only exit is to the east.",
+  e_to room06,
+  out_to room06,
+  before
+  [;
+    Exit:
+      if (noun == nothing)
+        <<Go FAKE_OUT_OBJ>>;
+    Listen:
+      if (samuel hasnt general)
+        "You hear the raspy tones of Samuel's singing.";
+      else
+        "You thought you heard a rat scurrying by.";
+    Smell:
+      "It smells putrid.";
+  ],
+has light;
+
+!----------------------------------------
+! Alley
+!----------------------------------------
+Object "alley" room07
+with
+  name 'alley' 'alleyway',
+  article "an",
+  description "It's quite narrow. Samuel seems to have taken up residence here.",
+has scenery;
+
+!----------------------------------------
+! Warehouse
+!----------------------------------------
+Object "warehouse"
+with
+  name 'warehouse',
+  description
+  [;
+    print "It's a large wooden warehouse";
+    if (self in room08)
+      print " being guarded by Jerome";
+    ".";
+  ],
+  found_in room07 room08,
+has scenery;
+
+!----------------------------------------
+! The Red Anchor pub
+!----------------------------------------
+Object "The Red Anchor" room07
+with
+  name 'red' 'anchor' 'pub',
+  description "You can only see the side of the pub from here. The entrance is from the waterfront.",
+has proper scenery;
+
+!----------------------------------------
+! Stale urine and vomit
+!----------------------------------------
+Object "stale urine and vomit" room07
+with
+  name 'urine' 'vomit',
+  description "You'd rather not.",
+has scenery;
+
+!----------------------------------------
+! Samuel, the drunk and former crewman
+!----------------------------------------
+Object samuel "Samuel" room07
+with
+  name 'samuel' 'sam' 'drunk' 'crewman',
+  description "Samuel is a scruffy-looking character with wrinkled, leathery skin and several days' worth of stubble.",
+  life
+  [;
+    Ask:
+      if (self has general)
+        "It's a bit hard to ask him questions when he's asleep.";
+      if (bottle notin self)
+        "~Answerin' questions is thirsty work. I needs ta lubricate me voice box. Ya got any rum?~";
+      switch (second)
+      {
+        'brenda':
+          "~Yeah, I saw 'er. Them pirates took 'er an' put 'er on the ship.~";
+        'captain', 'cutter':
+          "~Cutter? Cap'n Cutter? 'e's a right proper bastard. 'e dumped me 'ere for stealin' a bottle o' rum. Geez, a man's gotta drink don' 'e?~";
+        'harold':
+          "~Me an 'arold used ta serve together, ya know. We was pirates!~";
+        'isaac':
+          "~Me an Isaac is best mates. One o' these days, we're gunna get Cutter's treasure an' split it 50/50. 50% for me, an' the other 50% for me. Har, har, har.~";
+        'jerome':
+          "~'e's the keeper o' the treasure.~";
+        'jim', 'me', 'myself', 'self':
+          "He squints and takes a closer look at you. ~Arh, it's Jim from the pub. Ya doin' outside table service, now?~";
+        'pirate', 'pirates//p':
+          "~I was a pirate once. Plunderin' an' drinkin' an' wenchin' an' more drinkin'. Them was good days.~";
+        'samuel', 'sam', 'himself':
+          "~Who's Samuel? Oh, that's me! Har, har har.~";
+        'treasure':
+          give self general;
+          move translucent_parchment to location;
+          move bottle to location;
+          "He looks over his shoulder to make sure no one's listening. ~'arold gave it to me an' Isaac to 'ide, but we didn' trust one another, so we got Jerome to 'ide it an' 'e gave us each a parchment with a clue to its whereabouts. 'e said neither of us could find it unless we co...co-op...work together.~ He digs into his coat pocket, pulls out a parchment and throws it on the ground. ~'ere, you keep it. I don' wan' it no more. It's been nothin' but bad luck.~ With that, he takes another large swig of rum and passes out. The bottle of rum rolls onto the ground.";
+        default:
+          "~I don' know nothin' 'bout that. All I know is that man ain't a camel an' 'e needs a drink.~";
+      }
+    Give:
+      if (noun == bottle)
+      {
+        move bottle to self;
+        StopDaemon(room06);
+        "He snatches the bottle from you, takes a swig and cradles it in his coat. ~You're a good lad, Jim boy. Whadya wanna know? Just ask.~";
+      }
+    Help:
+      "I think Samuel is beyond help.";
+    Show:
+      if (noun == bottle)
+        "Samuel licks his lips. ~If ya don' want it, I'll be happy ta take it off ya hands.~";
+    Talk:
+      if (self has general)
+        "He's not going to say much while he's asleep.";
+      if (bottle in self)
+        "~I'm not one for talkin'. If ya wanna know somethin', just ask me an' I'll tell ya what I know.~";
+      "~Whadya want? Ya don' like me dulcet tones?~";
+    WakeOther:
+      if (self has general)
+        "Forget it. He's dead to the world.";
+      else
+        "What for? He's not asleep.";
+  ],
+has animate proper transparent;
+
+!----------------------------------------
+! Parchment
+!----------------------------------------
+Object translucent_parchment "translucent parchment"
+with
+  name 'translucent' 'transparent' 'parchment',
+  description "It has crosses in the top corners and a lot of horizontal lines. Perhaps you could try reading it.",
+  before
+  [;
+    PutOn:
+      if (second == opaque_parchment)
+      {
+        move self to limbo;
+        move overlaid_parchments to parent(opaque_parchment);
+        move opaque_parchment to limbo;
+        "You carefully overlay the translucent parchment on the opaque parchment and line up the crosses. The two parchments stick together. There must have been some sort of gum on them.";
+      }
+    Read:
+      font off;
+      print "+     _  _  _     _     _  _ +^";
+      print "         _  _  _        _  _^";
+      print "  /@@92  -     _     _  _  _  _^";
+      font on;
+      rtrue;
+    Tie:
+      if (second == nothing)
+        "You'll have to tell me what to attach it to.";
+      if (second ~= opaque_parchment)
+        "You can't attach it to that.";
+      "If you're trying to overlay the two parchments, try putting one on the other.";
+  ],
+has legible;
+
+!========================================
+! Room 8: Outside Warehouse
+!========================================
+Object room08 "Outside Warehouse"
+with
+  description "You're on the waterfront at the end of the harbour. There's a warehouse to the west and a long wooden walkway over the harbour to the east. The cobblestone path from the south ends here, but there's a narrow winding dirt path heading off to the northeast.",
+  s_to room06,
+  e_to room23,
+  w_to
+  [;
+    if (overlaid_parchments in jerome)
+      return room12;
+    else
+      "Jerome steps in front of you and blocks the way. ~Customers only. Show me proof that you've got business in there or it's no entry.~";
+  ],
+  in_to
+  [;
+    <<Go FAKE_W_OBJ>>;
+  ],
+  ne_to room09,
+  before
+  [;
+    Listen:
+      "You hear the sound of waves lapping against the seawall.";
+    Smell:
+      "You smell the salty seawater from the harbour.";
+    Swim:
+      "The water in the harbour is cold and wet and you can't swim.";
+  ],
+has light;
+
+!----------------------------------------
+! Walkway
+!----------------------------------------
+Object "walkway" room08
+with
+  name 'walkway',
+  description "It's a wooden walkway to the dock.",
+has scenery;
+
+!----------------------------------------
+! Dirt path
+!----------------------------------------
+Object "dirt path"
+with
+  name 'dirt' 'path' 'rock' 'rocks//p',
+  description "It's a narrow dirt path that meanders through the rocks.",
+  found_in room08 room09,
+has scenery;
+
+!----------------------------------------
+! Jerome
+!----------------------------------------
+Object jerome "Jerome" room08
+with
+  name 'jerome' 'owner',
+  description "He's a distinguished-looking gentleman with long black hair and a drooping moustache.",
+  life
+  [;
+    Ask:
+      switch (second)
+      {
+        'brenda':
+          print "~She's a lovely lass.";
+          if (self has general)
+            print " You try and get her back, Jim. Harold will be broken-hearted if he loses her.";
+          "~";
+        'captain', 'cutter':
+          "~I only know him by reputation. I'm one of the few folk on the waterfront that wasn't part of his crew at one stage.~";
+        'harold':
+          "~I like Harold. He's a good, honest, hard-working fellow, like myself. I hope he's alright.~";
+        'isaac':
+          "~Isaac's really taken to the life of a land lubber. I suppose you know that he's the lighthouse keeper nowadays.~";
+        'jerome', 'himself':
+          "~I suppose you know that I own the warehouse. All the goods being shipped in and out usually get stored here at some stage.~";
+        'jim', 'me', 'myself', 'self':
+          "~I think that bump on the noggin must've knocked something loose. You're Jim. You work at The Red Anchor.~";
+        'lighthouse':
+          "Jerome points to the northeast. ~Just follow the path up there.~";
+        'opaque', 'overlaid', 'parchment', 'parchments//p', 'translucent':
+          if (overlaid_parchments notin self)
+            "He raises an eyebrow. ~I don't know anything about any parchment.~";
+          "~Samuel and Isaac didn't trust one another, so they asked me to hide the treasure. The parchments are a hint to its whereabouts.~";
+        'pirate', 'pirates//p':
+          "~We get a pirate ship mooring here from time to time. I think it's because we're only a small harbour and some of the locals are ex-pirates themselves.~";
+        'ship':
+          "~That's Captain Cutter's ship. He's a pirate, you know.~";
+        'samuel':
+          "~Samuel's a bit of a no-hoper. He worked for me for a while, but I had to lay him off. Too unreliable.~";
+        'treasure':
+          if (overlaid_parchments notin self)
+            "He suddenly clams up. ~Treasure? What treasure?~";
+          "~You're clearly in cahoots with Samuel and Isaac, so I'll confess that the treasure's hidden in the warehouse, but it's up to you to find it.~";
+        'warehouse':
+          if (overlaid_parchments notin self)
+            "~I can't let you in unless you've got business in there.~";
+          "~Go ahead, Jim. You can go in if you're looking for the treasure.~";
+        default:
+          "~That doesn't seem to be related to goods or shipping. Ask me about something else.~";
+      }
+    Give:
+      if (noun == translucent_parchment or opaque_parchment)
+        "Jerome raises his eyebrow and returns the parchment. ~That doesn't mean anything to me.~ You suspect he's not telling the truth.";
+      if (noun ~= overlaid_parchments)
+        "~What do I want with that? I've got a warehouse full of goods.~";
+      move overlaid_parchments to self;
+      "He takes the parchment from you and hides it inside his jacket. ~I see you've been talking to Samuel and Isaac. If they've given you their parchments, then they must trust you. The treasure is all yours.~";
+    Help:
+      "~Thanks for the offer, Jim, but I don't need any help at the moment.~";
+    Show:
+      if (noun == translucent_parchment or opaque_parchment)
+        "Jerome shifts uneasily. ~Is that supposed to mean something to me?~";
+      if (noun == chest or coins)
+        "~It looks like you've found what you came for.~";
+      if (noun ~= overlaid_parchments)
+        "~That's of no interest to me.~";
+      "Jerome suddenly becomes very attentive. ~Where did you get that? Give it to me or be on your way.~";
+    Talk:
+      if (self has general)
+        "~I'm getting too old to go chasing around after pirates, but if there's anything you need to know about, just ask me.~";
+      give self general;
+      "~Good morning Jim. How are you today?~ You tell him about the goings on at The Red Anchor. ~Flamin' Cutter. That must've been him and his men I saw rushing past earlier today. I was inside the warehouse, so couldn't make out any details. One of them had a large bag over his shoulder. That must've been Brenda.~";
+  ],
+has animate proper;
+
+!========================================
+! Room 9: Outside Lighthouse
+!========================================
+Object room09 "Outside Lighthouse"
+with
+  description "You're standing outside the lighthouse keeper's hut at the base of the lighthouse. The door to the hut is to the north. The only exit is back down the windy dirt path to the southwest.",
+  n_to lighthouse_door,
+  in_to lighthouse_door,
+  sw_to room08,
+  before
+  [;
+    Listen:
+      "You hear the squawking of seagulls.";
+    Smell:
+      "You can still smell the salty seawater from the harbour, but it is much fainter up here.";
+  ],
+has light;
+
+!----------------------------------------
+! Lighthouse keeper's hut
+!----------------------------------------
+Object "lighthouse keeper's hut"
+with
+  name 'lighthouse' ,
+  parse_name
+  [ nw i;
+    nw = NextWord();
+    if (nw == 'lighthouse')
+    {
+      i = 1;
+      while (NextWord() == 'keeper^s' or 'hut' or 'residence')
+        i++;
+      if (i == 1)
+        return 0;
+      return i;
+    }
+    if (nw == 'keeper^s' or 'hut')
+    {
+      i = 1;
+      while (NextWord() == 'keeper^s' or 'hut' or 'residence')
+        i++;
+      return i;
+    }
+    return 0;
+  ],
+  article "the",
+  description
+  [;
+    if (self in  room09)
+      "It's a simple stone affair with a slate-tiled roof.";
+    else
+      "It's cluttered with cupboards and simple furniture.";
+  ],
+  found_in room09 room10,
+has scenery;
+
+!----------------------------------------
+! Slate-tiled roof
+!----------------------------------------
+Object "slate-tiled roof" room09
+with
+  name 'slate-tiled' 'slate' 'tiled' 'roof',
+  description "It's to keep the rain out, but I'm sure you knew that.",
+has scenery;
+
+!----------------------------------------
+! Lighthouse
+!----------------------------------------
+Object "lighthouse" room09
+with
+  name 'lighthouse',
+  description "The lighthouse towers over you. It appears to be constructed from local stone that has been white-washed so that it stands out in the night time.",
+has scenery;
+
+!----------------------------------------
+! Lighthouse door
+!----------------------------------------
+Object lighthouse_door "lighthouse door"
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'lighthouse' && NextWord() == 'door')
+      return 2;
+    if (nw == 'door')
+      return 1;
+    return 0;
+  ],
+  article "the",
+  description
+  [;
+    print "It's a sturdy, weathered wooden door with a circular window. The door is currently ";
+    if (self has open)
+      "open.";
+    else
+      "closed.";
+  ],
+  door_dir
+  [;
+    if (self in room09)
+      return n_to;
+    else
+      return s_to;
+  ],
+  door_to
+  [;
+    if (self in room09)
+      return room10;
+    else
+      return room09;
+  ],
+  before
+  [;
+    Attack:
+      if (self hasnt locked)
+        "There's not much point knocking on the door now. Isaac has already unlocked it for you.";
+      give self ~locked open;
+      StartDaemon(isaac);
+      "A voice from inside yells, ~Hang about.~ After a brief pause, you hear the door being unlatched. The door squeaks open on rusty hinges and Isaac sticks his head out. He squints in the sunshine. ~Hello, Jim. What brings you here? Come inside.~";
+  ],
+  found_in room09 room10,
+has door lockable locked openable scenery;
+
+!----------------------------------------
+! Cabin door window
+!----------------------------------------
+Object "circular window"
+with
+  name 'circular' 'window' 'porthole',
+  description
+  [;
+    print "It's a small circular window, somewhat like a porthole on a ship.";
+    if (lighthouse_door hasnt open)
+    {
+      print " When you peer through, you can see ";
+      if (self in room09)
+        "someone sitting in a chair.";
+      else
+        "a view over the harbour.";
+    }
+    "";
+  ],
+  found_in room09 room10,
+has scenery;
+
+!========================================
+! Room 10: Inside Lighthouse
+!========================================
+Object room10 "Inside Lighthouse"
+with
+  description "This is the lighthouse keeper's hut. It's a very simple residence with spartan furniture. You can see a spiral stone staircase that ascends the lighthouse and a door to the south.",
+  s_to lighthouse_door,
+  out_to lighthouse_door,
+  u_to room11,
+  before
+  [;
+    Exit:
+      if (noun == nothing)
+        <<Go FAKE_OUT_OBJ>>;
+    Listen:
+      "All is quiet, except for Isaac's occasional wheezing.";
+    Smell:
+      "It smells a bit fishy. You're not sure if that's from Isaac or from his last meal.";
+  ],
+has light;
+
+!----------------------------------------
+! Lighthouse
+!----------------------------------------
+Object "lighthouse"
+with
+  name 'lighthouse',
+  description "You can see it better from outside.",
+  found_in room10 room11,
+has scenery;
+
+!----------------------------------------
+! Furniture
+!----------------------------------------
+Object "furniture" room10
+with
+  name 'furniture',
+  description "There's nothing special, just lots of cupboards, a table and a couple of chairs.",
+has pluralname scenery;
+
+!----------------------------------------
+! Staircase
+!----------------------------------------
+Object "staircase"
+with
+  parse_name
+  [ i;
+    while (NextWord() == 'spiral' or 'stone' or 'staircase' or 'stairway' or 'stair' or 'stairs//p' or 'step' or 'steps//p')
+      i++;
+    return i;
+  ],
+  description "The stone staircase winds its way around the inside wall of the lighthouse.",
+  before
+  [;
+    Climb, Enter:
+      if (self in room10)
+        <<Go FAKE_U_OBJ>>;
+      else
+        <<Go FAKE_D_OBJ>>;
+  ],
+  found_in room10 room11,
+has scenery;
+
+!----------------------------------------
+! Isaac
+!----------------------------------------
+Object isaac "Isaac" room10
+with
+  name 'isaac',
+  description "He's a crusty old seafarer with long white hair and a bushy white beard.",
+  life
+  [;
+    Ask:
+      switch (second)
+      {
+        'brenda':
+          "~She's a sweet girl. Brings me home-made cakes and biscuits from time to time.~";
+        'captain', 'cutter':
+          "~Cutter was a tough bugger, but he treated us fairly.~";
+        'harold':
+          "~We served together on Cutter's crew during our pirating days. Been friends ever since.~";
+        'isaac', 'himself':
+          "~Me? I'm quite happy in my retirement as a lighthouse keeper.~";
+        'jerome':
+          "~He's a real businessman. You'll find him at the warehouse.~";
+        'jim', 'me', 'myself', 'self':
+          "~If you're looking for compliments, you've come to the wrong place.~";
+        'opaque', 'parchment', 'parchments//p', 'translucent', 'overlaid':
+          "~The parchments are the clue to the location of Cutter's treasure.~";
+        'pirate', 'pirates//p':
+          "~I try to keep away from 'em. They're no-good scoundrels, the lot of 'em.~";
+        'samuel':
+          "~Aw, he's alright I suppose, but he drinks too much.~";
+        'treasure':
+          if (opaque_parchment notin nothing)
+            "~You'll have to find it yourself. I don't where it is. The parchment should help.~";
+          move opaque_parchment to lighthouse_table;
+          "~Cutter got me and Harold and Isaac to hide his treasure. Harold wanted nothing to do with it. Samuel and I didn't trust one another, so we gave it to Jerome to hide and he gave us each a clue to its whereabouts. Just a moment.~ He digs around in one of the cupboards and puts an opaque parchment on the table. ~It means nothing to me, but if it helps you find the treasure, you're welcome to it.~";
+        default:
+          "~Hmmm, I don't know anything about that.~";
+      }
+    Give:
+      if (noun == translucent_parchment or opaque_parchment or overlaid_parchments)
+        "~You keep it, Jim. It will help you find Cutter's treasure.~";
+    Help:
+      "~Do you think I'm some sort of geriatric or something? Thanks, but I can manage by myself.~";
+    Show:
+      if (noun == translucent_parchment or opaque_parchment)
+        "~The parchments are the clue to the location of Cutter's treasure.~";
+      if (noun == overlaid_parchments)
+        "~Well, I'll be buggered. Jerome is a cunning bugger. It looks like the treasure was in the warehouse all the time.~";
+    Talk:
+      if (self has general)
+        "~If there's anything or anyone you need to know about, just ask.~";
+      give self general;
+      "~What brings you here? Why aren't you at work?~ You explain what happened at The Red Anchor. ~Blimey, that's no good. How can I help? Just ask.~";
+  ],
+  daemon
+  [;
+    if (location == room09)
+    {
+      switch (self.time_left++)
+      {
+        1: print "^Isaac yells out, ~Are you comin' inside or not?^";
+        2: print "^Isaac yells out, ~If you're not comin' in, close the door.~^";
+      }
+    }
+    if (location == room10)
+      StopDaemon(self);
+  ],
+  time_left 0,
+has animate proper;
+
+!----------------------------------------
+! Cupboards
+!----------------------------------------
+Object "cupboards" room10
+with
+  name 'cupboard' 'cupboards//p',
+  description "They're all closed.",
+  before
+  [;
+    Open:
+      "~Oi, leave them alone. I've got all the lighthouse supplies in there.~";
+  ],
+has pluralname static;
+
+!----------------------------------------
+! Table
+!----------------------------------------
+Object lighthouse_table "table" room10
+with
+  name 'solid' 'wooden' 'table',
+  description
+  [;
+    print "It's a solid wooden table. Nothing fancy. ";
+    <<Search self>>;
+  ],
+has static supporter;
+
+!----------------------------------------
+! Oil lamp
+!----------------------------------------
+Object lamp "oil lamp" lighthouse_table
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'oil')
+    {
+      if (NextWord() == 'lamp')
+        return 2;
+      else
+        if (TestScope(oil))
+          return 0;
+        else
+          return 1;
+    }
+    if (nw == 'lamp')
+      return 1;
+    return 0;
+  ],
+  article "an",
+  description
+  [;
+    print "It's a tarnished brass oil lamp. You can see that it's got ";
+    if (self has general)
+      print "fuel and is";
+    else
+      print "no fuel, so it's";
+    print " currently turned ";
+    if (self has light)
+      "on.";
+    else
+      "off.";
+  ],
+  before
+  [;
+    Extinguish:
+      if (self hasnt light)
+        "It's already off.";
+      give self ~light;
+      "You turn the lamp off.";
+    Burn:
+      if (self has light)
+        "It's already on.";
+      if (second == nothing && tinderbox in player)
+      {
+        print "(with the tinderbox)^";
+        <<Burn self tinderbox>>;
+      }
+      if (second ~= tinderbox)
+        "You can't light the lamp with ", (the)second, ".";
+      print "You strike the steel on the flint and the sparks light the tinder. You ";
+      if (self hasnt general)
+        "try to light the lamp, but nothing happens. It's obviously got no fuel, so you blow the tinder out.";
+      give self light;
+      print "then light the lamp and blow the tinder out.^";
+      if (location == thedark)
+        print "^";
+      rtrue;
+    Fill:
+      if (self has general)
+        "It's already full.";
+      if (second == nothing && oil in location)
+      {
+        print "(with the oil)^";
+        <<Fill self oil>>;
+      }
+      if (second == nothing)
+        "You'll have to tell me what to fill it with.";
+      if (second ~= oil)
+        "You can't fill the lamp with that.";
+      give self general;
+      "You fill the lamp with oil from one of the barrels.";
+  ],
+  after
+  [;
+    Take, Remove:
+      if (self hasnt moved)
+        "As you pick up the oil lamp, Isaac says, ~There's no oil in it. There's some upstairs if ya need it.~";
+  ],
+has;
+
+!----------------------------------------
+! Chairs
+!----------------------------------------
+Object "chairs" room10
+with
+  name 'chair' 'chairs//p',
+  description "They're a pair of solid wooden chairs with vertical slats on the back rest. Isaac is sitting on one of them.",
+  before
+  [;
+    Enter:
+      "You have work to do. You can rest later.";
+  ],
+has pluralname static supporter;
+
+!----------------------------------------
+! Parchment
+!----------------------------------------
+Object opaque_parchment "opaque parchment"
+with
+  name 'opaque' 'parchment',
+  article "an",
+  description "It has crosses in the top corners and a lot of vertical lines. Perhaps you could try reading it.",
+  before
+  [;
+    PutOn:
+      if (second == translucent_parchment)
+        "You carefully overlay the opaque parchment on the translucent parchment and try to line up the crosses, but you can't see through the parchment. Perhaps you should try it the other way around.";
+    Read:
+      font off;
+      print "+                            +^";
+      print " |  || || )|  | || || ||  |^";
+      print " |  || || @@92|  | || || |  ||^";
+      font on;
+      rtrue;
+    Tie:
+      if (second == nothing)
+        "You'll have to tell me what to attach it to.";
+      if (second ~= translucent_parchment)
+        "You can't attach it to that.";
+      "If you're trying to attach or overlay the two parchments, try putting one on the other.";
+  ],
+has legible;
+
+!----------------------------------------
+! Parchment
+!----------------------------------------
+Object overlaid_parchments "overlaid parchments"
+with
+  name 'overlaid' 'parchment' 'parchments//p',
+  article "two",
+  description "It has crosses in the top corners and a lot of lines. Perhaps you could try reading it.",
+  before
+  [;
+    Read:
+      font off;
+      print "+     _  _  _     _     _  _ +^";
+      print " |  || ||_)|_ |_|| || ||_ |_^";
+      print " |/@@92||-|| @@92|_ | ||_||_| _||_^";
+      font on;
+      rtrue;
+  ],
+has legible;
+
+!========================================
+! Room 11: Top of Lighthouse
+!========================================
+Object room11 "Top of Lighthouse"
+with
+  description "You're in the lantern room at the top of the lighthouse. The huge oil lantern and lens dominate the centre of the room beneath a domed cupola. A narrow walkway surrounds the room with lead-lined windows for the whole 360 degrees. The only exit is back down the spiral staircase.",
+  d_to room10,
+  before
+  [;
+    Smell:
+      "You catch of whiff of whale oil from the barrels.";
+  ],
+has light;
+
+!----------------------------------------
+! Lantern
+!----------------------------------------
+Object "lantern" room11
+with
+  name 'lantern',
+  description "The lantern has a huge parabolic reflector behind it and a magnifying lens in front of it. It's not lit at the moment, as it's daytime.",
+has scenery;
+
+!----------------------------------------
+! Parabolic reflector
+!----------------------------------------
+Object "parabolic reflector" room11
+with
+  name 'parabolic' 'reflector',
+  description "The parabolic reflector is huge. It rotates when the lighthouse is operational and reflects the light for miles out to sea.",
+has scenery;
+
+!----------------------------------------
+! Magnifying lens
+!----------------------------------------
+Object "magnifying lens" room11
+with
+  name 'magnifying' 'lens',
+  description "The magnifying lens is huge. When the lighthouse is operational, it concentrates the light from the lantern into a narrow beam.",
+has scenery;
+
+!----------------------------------------
+! Walkway
+!----------------------------------------
+Object "walkway" room11
+with
+  name 'walkway',
+  description "It's a circular walkway that allows full access to every part of the lantern and lens for maintenance purposes.",
+has scenery;
+
+!----------------------------------------
+! Windows
+!----------------------------------------
+Object "windows" room11
+with
+  name 'window' 'windows//p',
+  description "When you look through the 360 degree windows, the view over the harbour and the ocean is spectacular.",
+  before
+  [;
+    Open:
+      "These windows are permanently shut and cannot be opened. Any fumes from the oil lantern go through the exhaust vent in the cupola.";
+  ],
+has pluralname scenery;
+
+!----------------------------------------
+! Cupola
+!----------------------------------------
+Object "cupola" room11
+with
+  name 'cupola' 'ceiling' 'roof',
+  description "It's a domed ceiling at the top of the room.",
+has scenery;
+
+!----------------------------------------
+! Exhaust vent
+!----------------------------------------
+Object "exhaust vent" room11
+with
+  name 'exhaust' 'vent',
+has scenery;
+
+!----------------------------------------
+! Oil barrels
+!----------------------------------------
+Object "oil barrels" room11
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'oil')
+    {
+      if (NextWord() == 'barrel' or 'barrels//p')
+        return 2;
+      else
+        if (TestScope(oil))
+          return 0;
+        else
+          return 1;
+    }
+    if (nw == 'barrel' or 'barrels//p')
+      return 1;
+    return 0;
+  ],
+  description "These barrels contain the whale oil used to fuel the lantern. The same oil can be used to fuel a lamp, should you need it.",
+  before
+  [;
+    Take:
+      "You're kidding, right?";
+  ],
+has pluralname static;
+
+!----------------------------------------
+! Oil
+!----------------------------------------
+Object oil "oil" room11
+with
+  name 'oil',
+  description "It's in the oil barrels.",
+  before
+  [;
+    Take:
+      if (lamp notin player)
+        "You have nothing to put it in.";
+      if (lamp has general)
+        "You've already filled the oil lamp. That will last for ages.";
+      give lamp general;
+      "You fill the brass lamp with oil.";
+  ],
+has pluralname scenery;
+
+!========================================
+! Warehouse Class
+!========================================
+Class warehouse_class
+with
+  before
+  [;
+    Go:
+      if (dummy_crate in location && selected_direction == dummy_crate.direction)
+        "There's a crate blocking that exit.";
+      rfalse;
+    Smell:
+      "You smell dust and sawn timber from the packing crates.";
+  ],
+has;
+
+!========================================
+! Room 12: Warehouse C4
+!========================================
+Object room12 "Warehouse C4"
+class warehouse_class
+with
+  description
+  [;
+    print "You're in a large warehouse that extends to the north and west. You can leave the warehouse to the east.";
+    if (crate notin self)
+      print " This part of the warehouse has a large 'C4' painted on the floor.";
+    "";
+  ],
+  n_to room13,
+  e_to room08,
+  out_to room08,
+  w_to room21,
+  before
+  [;
+    Exit:
+      if (noun == nothing)
+        <<Go FAKE_OUT_OBJ>>;
+  ],
+has light;
+
+!========================================
+! Room 13: Warehouse B4
+!========================================
+Object room13 "Warehouse B4"
+class warehouse_class
+with
+  description
+  [;
+    print "You're in a large warehouse that extends to the north, south and west.";
+    if (crate notin self)
+      print " This part of the warehouse has a large 'B4' painted on the floor.";
+    "";
+  ],
+  n_to room14,
+  s_to room12,
+  w_to room20,
+has light;
+
+!========================================
+! Room 14: Warehouse A4
+!========================================
+Object room14 "Warehouse A4"
+class warehouse_class
+with
+  description
+  [;
+    print "You're in a large warehouse that extends to the south and west.";
+    if (crate notin self)
+      print " This part of the warehouse has a large 'A4' painted on the floor.";
+    "";
+  ],
+  s_to room13,
+  w_to room15,
+has light;
+
+!========================================
+! Room 15: Warehouse A3
+!========================================
+Object room15 "Warehouse A3"
+class warehouse_class
+with
+  description
+  [;
+    print "You're in a large warehouse that extends to the south, east and west.";
+    if (crate notin self)
+      print " This part of the warehouse has a large 'A3' painted on the floor.";
+    "";
+  ],
+  s_to room20,
+  e_to room14,
+  w_to room16,
+has light;
+
+!========================================
+! Room 16: Warehouse A2
+!========================================
+Object room16 "Warehouse A2"
+class warehouse_class
+with
+  description
+  [;
+    print "You're in a large warehouse that extends to the south, east and west.";
+    if (crate notin self)
+      print " This part of the warehouse has a large 'A2' painted on the floor.";
+    "";
+  ],
+  s_to room19,
+  e_to room15,
+  w_to room17,
+has light;
+
+!========================================
+! Room 17: Warehouse A1
+!========================================
+Object room17 "Warehouse A1"
+class warehouse_class
+with
+  description
+  [;
+    print "You're in a large warehouse that extends to the east and south.";
+    if (crate notin self)
+      print " This part of the warehouse has a large 'A1' painted on the floor.";
+    "";
+  ],
+  s_to room18,
+  e_to room16,
+has light;
+
+!----------------------------------------
+! Warehouse
+!----------------------------------------
+Object "warehouse"
+with
+  name 'warehouse' 'goods',
+  description "The warehouse is full of various goods awaiting shipping or collection.",
+  found_in
+  [;
+    if (location ofclass warehouse_class)
+      rtrue;
+  ],
+has scenery;
+
+!========================================
+! Room 18: Warehouse B1
+!========================================
+Object room18 "Warehouse B1"
+class warehouse_class
+with
+  description
+  [;
+    print "You're in a large warehouse that extends to the north and east.";
+    if (crate notin self)
+      print " This part of the warehouse has a large 'B1' painted on the floor.";
+    "";
+  ],
+  n_to room17,
+  e_to room19,
+has light;
+
+!========================================
+! Room 19: Warehouse B2
+!========================================
+Object room19 "Warehouse B2"
+class warehouse_class
+with
+  description
+  [;
+    print "You're in a large warehouse that extends to the north, east and west.";
+    if (crate notin self)
+      print " This part of the warehouse has a large 'B2' painted on the floor. Someone has written 'Code: 34' underneath it in chalk.";
+    "";
+  ],
+  n_to room16,
+  e_to room20,
+  w_to room18,
+has light;
+
+!----------------------------------------
+! Crate
+!----------------------------------------
+Object crate "crate" room19
+with
+  name 'crate',
+  description "It's a huge shipping crate.",
+  before
+  [;
+    Climb:
+      if (player in self)
+        <<Go FAKE_D_OBJ>>;
+    Exit:
+      print "You climb down off the crate.^^";
+      PlayerTo(crate_location, 2);
+      return 2;
+    Go:
+      if (selected_direction == u_to)
+      {
+        if (location == room21 && trapdoor hasnt open)
+        {
+          print "You'll have to open the trapdoor first.^";
+          return 2;
+        }
+        if (location == room21)
+        {
+          print "You clamber through the trapdoor.^^";
+          PlayerTo(room22);
+          return 2;
+        }
+        print "You can't climb any higher.^";
+        return 2;
+      }
+      if (selected_direction == d_to)
+      {
+        print "You climb down off the crate.^^";
+        PlayerTo(crate_location, 2);
+        return 2;
+      }
+      print "You'll have to get off the crate first.^";
+      return 2;
+  ],
+has enterable supporter;
+
+!----------------------------------------
+! Dummy crate
+!----------------------------------------
+Object dummy_crate "crate"
+with
+  name 'crate',
+  initial
+  [;
+    "There's a large crate blocking the exit to the ", (string)direction_name_array-->(self.direction - N_TO_CONST + 1), ".";
+  ],
+  description
+  [;
+    "It's a large crate blocking the exit to the ", (string)direction_name_array-->(self.direction - N_TO_CONST + 1), ".";
+  ],
+  before
+  [ player_target crate_target;
+    Climb, Enter:
+      crate_location = location;
+      print "You clamber onto the crate.^^";
+      PlayerTo(crate, 2);
+      rtrue;
+    Pull:
+      "There's nothing to get a grip of.";
+    Push:
+      player_target = location.(self.direction);
+      if (player_target == 0)
+        "You try pushing the crate to the ", (string)direction_name_array-->(self.direction - N_TO_CONST + 1), ", but something is blocking the way.^";
+      if (crate_target == room08)
+        "The crate won't fit through the warehouse door.";
+      crate_target = player_target.(self.direction);
+      if (crate_target == 0)
+        "You try pushing the crate to the ", (string)direction_name_array-->(self.direction - N_TO_CONST + 1), ", but something is blocking the way.^";
+      move crate to crate_target;
+      move self to player_target;
+      print "You push the crate to the ", (string)direction_name_array-->(self.direction - N_TO_CONST + 1), ".^^";
+      PlayerTo(player_target, 2);
+      rtrue;
+  ],
+  found_in
+  [ i;
+    i = N_TO_CONST;
+    while (i < N_TO_CONST + 4)
+    {
+      if (crate in location.i)
+      {
+        self.direction = i;
+        rtrue;
+      }
+      i++;
+    }
+  ],
+  direction 0,
+has static;
+
+!========================================
+! Room 20: Warehouse B3
+!========================================
+Object room20 "Warehouse B3"
+class warehouse_class
+with
+  description
+  [;
+    print "You're in a large warehouse that extends to the north, south, east and west.";
+    if (crate notin self)
+      print " This part of the warehouse has a large 'B3' painted on the floor.";
+    "";
+  ],
+  n_to room15,
+  s_to room21,
+  e_to room13,
+  w_to room19,
+has light;
+
+!========================================
+! Room 21: Warehouse C3
+!========================================
+Object room21 "Warehouse C3"
+class warehouse_class
+with
+  description
+  [;
+    print "You're in a large warehouse that extends to the north and east.";
+    if (crate notin self)
+      print " This part of the warehouse has a large 'C3' painted on the floor.";
+    print " There's a trapdoor in the ceiling";
+    if (player notin crate)
+      print ", but you can't reach it from the ground.";
+    else
+      print ". You can reach it now that you're standing on the crate.";
+    "";
+  ],
+  n_to room20,
+  e_to room12,
+  u_to
+  [;
+    if (player in crate)
+      return trapdoor;
+    else
+      "The trapdoor is out of your reach.";
+  ],
+has light;
+
+!----------------------------------------
+! Trapdoor
+!----------------------------------------
+Object trapdoor "trapdoor"
+with
+  name 'trapdoor',
+  description
+  [;
+    print "It's a trapdoor in the ceiling that's currently ";
+    if (self has open)
+      "open.";
+    else
+      "closed.";
+  ],
+  door_dir
+  [;
+    if (self in room21)
+      return u_to;
+    else
+      return d_to;
+  ],
+  door_to
+  [;
+    if (self in room21)
+      return room22;
+    else
+      return room21;
+  ],
+  before
+  [;
+    Enter, Open, Close, Lock, Unlock, Reach:
+      if (location == room21 && player notin crate)
+        "The trapdoor is out of your reach.";
+  ],
+  found_in room21 room22,
+has door openable scenery;
+
+!========================================
+! Room 22: Warehouse Attic
+!========================================
+Object room22 "Warehouse Attic"
+with
+  description "You're in a dark, dusty attic that doesn't look like it's been used for a long time. The only exit is through the trapdoor in the floor.",
+  d_to
+  [;
+    if (trapdoor hasnt open)
+      "You'll have to open the trapdoor first.";
+    print "You lower yourself onto the top of the crate.^^";
+    PlayerTo(crate);
+    rtrue;
+  ],
+  out_to
+  [;
+    <<Go FAKE_D_OBJ>>;
+  ],
+  before
+  [;
+    Exit:
+      if (noun == nothing)
+        <<Go FAKE_D_OBJ>>;
+    Smell:
+      "As you breathe in, you smell dust particles.";
+    PushButton:
+      if (inp1 == 1 && (second == nothing or lock))
+      {
+        if (noun < 1 || noun > 6)
+          "There are no buttons with that number.";
+        if (box has open)
+          "You can't press any of the buttons while the box is open.";
+        if (noun ~= 1)
+          lock.button1 = 1 - lock.button1;
+        if (noun ~= 2)
+          lock.button2 = 1 - lock.button2;
+        if (noun ~= 3)
+          lock.button3 = 1 - lock.button3;
+        if (noun ~= 4)
+          lock.button4 = 1 - lock.button4;
+        if (noun ~= 5)
+          lock.button5 = 1 - lock.button5;
+        if (noun ~= 6)
+          lock.button6 = 1 - lock.button6;
+        print "You press button ", noun, " and all the other buttons toggle as follows:^";
+        if (PrintButtons() == 12)
+        {
+          give box ~locked;
+          "You hear a click. The box is now unlocked.";
+        }
+        if (box hasnt locked)
+        {
+          give box locked;
+          "The box is now locked.";
+        }
+        rtrue;
+      }
+  ],
+has;
+
+!----------------------------------------
+! Warehouse attic
+!----------------------------------------
+Object "warehouse attic" room22
+with
+  name 'warehouse' 'attic',
+  description "It's very dark and very cramped. You can only see as far as the light from the oil lamp allows you to see and you don't want to venture any further as you have no idea what ghouls may be waiting for you in the darkness.",
+has scenery;
+
+!----------------------------------------
+! Dust
+!----------------------------------------
+Object "dust" room22
+with
+  name 'dust',
+  description "Achoo!",
+has pluralname scenery;
+
+!----------------------------------------
+! Scale
+!----------------------------------------
+Object scale "scale" room22
+with
+  parse_name
+  [ i;
+    while (NextWord() == 'sliding' or 'weight' or 'scale' or 'pan' or 'lever')
+      i++;
+    return i;
+  ],
+  description
+  [;
+    print "It's an iron and brass sliding weight scale. You put the object to be weighed on the brass pan, then slide the weight along the graduated lever to determine the weight. ";
+    <<Search self>>;
+  ],
+  before
+  [;
+    Empty:
+      if (children(self) == 0)
+        "It's already empty.";
+      if (child(self) == pebbles && location == room05)
+      {
+        move pebbles to location;
+        give pebbles concealed;
+        "You empty out the scale and the pebbles are back on the path where they came from.";
+      }
+      move child(self) to location;
+      "You empty out the scale.";
+    EmptyT:
+      if (children(self) == 0)
+        "It's already empty.";
+      if (second hasnt container && second hasnt supporter)
+        "You can only empty it into another container or onto a supporter.";
+      if (children(second) > 0)
+        "You'll have to empty ", (the)second, " first.";
+      move child(self) to second;
+      print "You empty the treasure chest ";
+      if (second has container)
+        print "into ";
+      else
+        print "onto ";
+      print_ret (the)second, ".";
+    Receive:
+      if (self notin location)
+        "You need to put the scale on a solid surface.";
+      if (children(self) > 0)
+        "You can only weigh one thing at a time.";
+      if (noun ~= pebbles or coins or bag)
+        "You can't weigh that on this scale.";
+  ],
+  after
+  [;
+    Receive:
+      print "You place ", (the)noun, " on the scale and see that ";
+      if (noun has pluralname)
+        print "they weigh ";
+      else
+        print "it weighs ";
+      if (noun == bag)
+      {
+        if (children(bag) == 0)
+          "practically nothing.";
+        print_ret child(bag).number * child(bag).capacity / 100,".", child(bag).number * child(bag).capacity % 100, " ounces.";
+      }
+  ],
+has supporter;
+
+!----------------------------------------
+! Wooden box
+!----------------------------------------
+Object box "wooden box" room22
+with
+  name 'wood' 'wooden' 'box',
+  description "It's a large wooden box with a distinctly Oriental feel to it. It appears to be made from a dark-stained teak. It has some intricate carvings of dragons, most notably around the lock.",
+  before
+  [;
+    Take:
+      "That's far too heavy to move by yourself.";
+  ],
+has container lockable locked openable static;
+
+!----------------------------------------
+! Carvings of dragons
+!----------------------------------------
+Object "carvings of dragons" room22
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'carving' or 'carvings//p')
+      if (NextWord() == 'of' && NextWord() == 'dragon' or 'dragons//p')
+        return 3;
+      else
+        return 1;
+    if (nw == 'dragon' or 'dragons//p')
+      if (NextWord() == 'carving' or 'carvings//p')
+        return 2;
+      else
+        return 1;
+    return 0;
+  ],
+  description "The dragons are long and serpent-like with whiskers and five-fingered claws reaching for the lock. You know from sailors' stories that a five-fingered dragon can only be used by the emperor, so this box must be very valuable.",
+has pluralname scenery;
+
+!----------------------------------------
+! Lock
+!----------------------------------------
+Object lock "lock" room22
+with
+  name 'lock' 'numbered' 'button' 'buttons//p',
+  description
+  [;
+    print "The lock doesn't have a keyhole. Instead there are six numbered buttons laid out as follows:^";
+    PrintButtons();
+    rtrue;
+  ],
+  button1 1,
+  button2 1,
+  button3 1,
+  button4 1,
+  button5 1,
+  button6 1,
+has scenery;
+!----------------------------------------
+! Treasure chest
+!----------------------------------------
+Object chest "treasure chest" box
+with
+  name 'treasure' 'chest',
+  description
+  [;
+    print "It's a beautifully engraved bronze chest with intricate details highlighted in red enamel and gold. ";
+    <<Search self>>;
+  ],
+  before
+  [;
+    Empty:
+      if (self hasnt open)
+        "You'll have to open it first.";
+      if (children(self) == 0)
+        "It's already empty.";
+      if (child(self) == pebbles && location == room05)
+      {
+        move pebbles to location;
+        give pebbles concealed;
+        "You empty out the chest and the pebbles are back on the path where they came from.";
+      }
+      move child(self) to location;
+      "You empty out the chest.";
+    EmptyT:
+      if (self hasnt open)
+        "You'll have to open it first.";
+      if (children(self) == 0)
+        "It's already empty.";
+      if (second hasnt container && second hasnt supporter)
+        "You can only empty it into another container or onto a supporter.";
+      if (children(second) > 0)
+        "You'll have to empty ", (the)second, " first.";
+      move child(self) to second;
+      print "You empty the treasure chest ";
+      if (second has container)
+        print "into ";
+      else
+        print "onto ";
+      print_ret (the)second, ".";
+    Fill:
+      if (children(self) > 0)
+        "There's already ", (a)child(self), " in the chest.";
+      if (TestScope(pebbles) && TestScope(coins))
+        "You need to tell me whether to fill it with the pebbles or the coins.";
+      if (TestScope(pebbles))
+      {
+        print "(with the pebbles)^";
+        <<Insert pebbles self>>;
+      }
+      if (TestScope(coins))
+      {
+        print "(with the coins)^";
+        <<Insert coins self>>;
+      }
+      "You need to tell me what to fill it with.";
+    LetGo:
+      if (noun == pebbles or coins)
+      {
+        if (noun.number == 1)
+          print "It slips";
+        else
+          print "They slip";
+        print " through your fingers back into the chest. If you want to take ";
+        if (noun.number == 1)
+          print "it";
+        else
+          print "them";
+        " out, you'll have to empty the chest.";
+      }
+    Lock:
+      if (second == nothing && brass_key in player)
+      {
+        print "(with the brass key)^";
+        <<Lock self brass_key>>;
+      }
+      if (second == nothing && gold_key in player)
+      {
+        print "(with the gold key)^";
+        <<Lock self gold_key>>;
+      }
+      if (second == nothing)
+        "You need to tell me what to lock it with.";
+    Receive:
+      if (children(self) > 0)
+        "There's already ", (a)child(self), " in the treasure chest.";
+      if (noun ~= pebbles or coins)
+        "The treasure chest isn't really suitable for carrying ", (the)noun, ".";
+    Unlock:
+      if (second == nothing && brass_key in player)
+      {
+        print "(with the brass key)^";
+        <<Unlock self brass_key>>;
+      }
+      if (second == nothing && gold_key in player)
+      {
+        print "(with the gold key)^";
+        <<Unlock self gold_key>>;
+      }
+      if (second == nothing)
+        "You need to tell me what to unlock it with.";
+  ],
+  with_key gold_key,
+has container lockable locked openable;
+
+!----------------------------------------
+! Silver coins
+!----------------------------------------
+Object coins "silver coins" chest
+with
+  name 'silver' 'coin' 'coins//p',
+  description "There's a fortune in Spanish dollars (or pieces-of-eight).",
+  before
+  [;
+    Insert:
+      if (second == bag && children(bag) > 0)
+        "The bag is already full of ", (name)child(bag), ".";
+      if (second == chest && chest hasnt open)
+        "The chest is closed.";
+      if (second == chest && children(chest) > 0)
+        "The chest is already full of ", (name)child(chest), ".";
+      move self to second;
+      "You put the silver coins in ", (the)second, ".";
+    PutOn:
+      if (scale in player)
+        "You need to put the scale on a solid surface.";
+      if (second == scale && children(scale) > 0)
+        "The scale already has ", (name)child(scale), " on it.";
+      move self to second;
+      "You put the silver coins on the scale. They weigh ", child(scale).number * child(scale).capacity / 100,".", child(scale).number * child(scale).capacity % 100, " ounces.";
+    RemoveNumber:
+      "You'd better keep all the coins together or you'll lose them.";
+    Take:
+      if (self in bag)
+        "They're too awkward to carry. You need to leave them in the bag or empty it.";
+      if (self in chest)
+        "They're too awkward to carry. You need to leave them in the chest or empty it.";
+      "They're too awkward to carry. You need to put them in a bag or container.";
+    Weigh:
+      if (scale in player)
+        "You need to put the scale on a solid surface.";
+      if (scale notin location)
+        "You can't see anything to weigh them with.";
+      if (bag in scale && coins in bag || coins in scale)
+        "They weigh ", child(bag).number * child(bag).capacity / 100,".", child(bag).number * child(bag).capacity % 100, " ounces.";
+      if (bag in player && coins in bag)
+        <<PutOn bag scale>>;
+      <<PutOn self scale>>;
+  ],
+  after
+  [;
+    Insert:
+      if (second == bag)
+        "You fill the calico bag with the coins.";
+      if (second == chest)
+        "You fill the treasure chest with the coins.";
+  ],
+  number 50,
+  capacity 90,
+has pluralname;
+
+!========================================
+! Room 23: Dock
+!========================================
+Object room23 "Dock"
+with
+  description "You're on the dock at the northern end of the harbour. Some steps to the south lead down to a rowboat.",
+  s_to
+  [;
+    <<Go FAKE_D_OBJ>>;
+  ],
+  w_to room08,
+  d_to
+  [;
+    if (room27 hasnt visited && brass_key notin player)
+    {
+      print "You've got a horrible feeling that you've forgotten something. ";
+      if (brass_key in nothing)
+        "Maybe something back at the broom closet? You'd better go back and check.";
+      else
+        "Maybe that thing you found in the mouse hole?";
+    }
+    else
+      return room24;
+  ],
+  before
+  [;
+    Listen:
+      "You hear the sound of waves lapping against the piers of the dock.";
+    Smell:
+      "You smell the salty seawater from the harbour.";
+    Swim:
+      "The water in the harbour is cold and wet and you can't swim.";
+  ],
+  after
+  [;
+    Go:
+      if (brenda in location && ship hasnt general)
+      {
+        give ship general;
+        print "As you step onto the dock, you hear shouting coming from the pirate ship. You turn around to see the sails being unfurled. It looks like they're getting ready to sail.^^";
+      }
+  ],
+has light;
+
+!----------------------------------------
+! Dock
+!----------------------------------------
+Object "dock" room23
+with
+  name 'dock',
+  description "This is where the ships load and unload.",
+has scenery;
+
+!----------------------------------------
+! Steps
+!----------------------------------------
+Object "steps" room23
+with
+  name 'stair' 'stairs//p' 'step' 'steps//p',
+  description "The steps lead down to the rowboat.",
+  before
+  [;
+    Climb, Enter:
+      <<Go FAKE_D_OBJ>>;
+  ],
+has scenery;
+
+!----------------------------------------
+! Rowboat
+!----------------------------------------
+!If self has general, it's below the ship else it's below the dock
+Object rowboat "rowboat" room23
+with
+  name 'rowboat' 'boat',
+  description "It's a small wooden rowboat with a pointed bow and a flat transom with a sculling notch. The two thwarts can each accommodate two people. Fortunately for you, the oars are in the boat.",
+  before
+  [;
+    Enter:
+      print "You jump into the rowboat.^";
+      PlayerTo(room24);
+      rtrue;
+    Exit:
+      <<Go FAKE_U_OBJ>>;
+    Row:
+      if (self has general)
+        give self ~general;
+      else
+        give self general;
+      print "You place the oars in the oarlocks and row across the harbour to the ";
+      if (self has general)
+        print "ship.^^";
+      else
+        print "dock.^^";
+      <<Look>>;
+  ],
+  found_in room23 room24 room25,
+has scenery;
+
+!========================================
+! Room 24: Rowboat
+!========================================
+Object room24 "Rowboat"
+with
+  description
+  [;
+    print "You're in the harbour master's rowboat. It's currently moored to the ";
+    if (rowboat has general)
+      print "side of the ship";
+    else
+      print "dock";
+    ". You can go up to get out of the boat.";
+  ],
+  u_to
+  [;
+    if (brenda in self && rowboat has general)
+      "~No, Jim. I don't want to go back to that stinking ship.~";
+    print "You climb out of the rowboat.^^";
+    if (rowboat hasnt general)
+      return room23;
+    ship_directions_enabled = true;
+    return room25;
+  ],
+  before
+  [;
+    Exit:
+      <<Go FAKE_U_OBJ>>;
+    Listen:
+      "You hear the sound of waves lapping against the side of the rowboat.";
+    Smell:
+      "You smell the salty seawater from the harbour.";
+    Swim:
+      "The water in the harbour is cold and wet and you can't swim.";
+  ],
+has light;
+
+!----------------------------------------
+! Thwarts
+!----------------------------------------
+Object "thwarts" room24
+with
+  name 'thwart' 'thwarts//p' 'seat' 'seats//p',
+  article "two",
+  description "They're the seats.",
+has pluralname scenery;
+
+!----------------------------------------
+! Oars
+!----------------------------------------
+Object "oars" room24
+with
+  name 'oar' 'oars//p',
+  description "They belong to the rowboat.",
+  before
+  [;
+    Take:
+      "You can't take those. They belong to the rowboat. If you want to row the boat, you can just row it without needing to take the oars first.";
+  ],
+has pluralname scenery;
+
+!----------------------------------------
+! Oarlocks
+!----------------------------------------
+Object "oarlocks" room24
+with
+  name 'oarlock' 'oarlocks//p' 'rowlock' 'rowlocks//p',
+  description "The oarlocks hold the oars when you are rowing. They are U-shaped pieces of metal attached to the gunwhale and can swivel 360 degrees.
+",
+has pluralname scenery;
+
+!----------------------------------------
+! Sculling notch
+!----------------------------------------
+Object "sculling notch" room24
+with
+  name 'sculling' 'notch',
+  description "It's a notch in the stern for placing a rudder, but this rowboat doesn't have a rudder.",
+has scenery;
+
+!----------------------------------------
+! Bow
+!----------------------------------------
+Object "bow" room24
+with
+  name 'bow',
+  article "the",
+  description "That's the pointy bit at the front of the boat.",
+has scenery;
+
+!----------------------------------------
+! Stern
+!----------------------------------------
+Object "stern" room24
+with
+  name 'stern' 'transom',
+  article "the",
+  description "That's the back of the boat, but I'm sure you already knew that.",
+has scenery;
+
+!----------------------------------------
+! Gunwhale
+!----------------------------------------
+Object "gunwhale" room24
+with
+  name 'gunwhale',
+  description "That's the top edge of the boat where the oarlocks are mounted.",
+has scenery;
+
+!========================================
+! Room 25: Aft Deck
+!========================================
+Object room25 "Aft Deck"
+with
+  description "You're on the aft deck of the pirate ship with the fore deck beyond. Some stairs to the aft go up to the quarter deck above the door to the captain's cabin and more steps go down through a manhole. You can also go overboard to the port side, where your rowboat is waiting for you at the waterline below.",
+  n_to
+  [;
+    if (brenda in location)
+      "Brenda stops you. ~Please, Jim. Not that way. I want to go home.~";
+    else
+      return room31;
+  ],
+  s_to
+  [;
+    if (brenda in location)
+      "Brenda stops you. ~No, Jim. I've seen enough of that captain. Please take me home.~";
+    else
+      return cabin_door;
+  ],
+  w_to
+  [;
+    ship_directions_enabled = false;
+    move barnaby to self;
+    give cutter ~general;
+    if (straw has light)
+    {
+      give straw ~light;
+      StopDaemon(straw);
+      remove straw;
+    }
+    if (brenda has moved)
+      brenda.state = 4;
+    return room24;
+  ],
+  u_to
+  [;
+    if (brenda in location)
+      "Brenda stops you. ~Not that way, Jim. I've seen enough pirates for one day.~";
+    else
+      "You'd better not go up there or the pirates will catch you.";
+  ],
+  d_to
+  [;
+    if (brenda in location)
+      "Brenda stops you. ~Not that way, Jim. I don't want to go back to the brig.~";
+    else
+      return room29;
+  ],
+  in_to
+  [;
+    <<Go FAKE_S_OBJ>>;
+  ],
+  before
+  [;
+    Listen:
+      "You hear the sound of waves lapping against the hull of the ship.";
+    Smell:
+      "You smell the salty seawater from the harbour.";
+  ],
+  after
+  [;
+    Go:
+      if (barnaby in self)
+      {
+        <Look>;
+        if (room27 hasnt visited)
+          print "^~Who are you? All visitors must report to the captain.~";
+        else
+          print "^~You again? I thought you were in the brig.~";
+        print " Barnaby grabs you by the collar and marches you into the captain's cabin.^^";
+        give cabin_door open;
+        move barnaby to room26;
+        <<Go FAKE_S_OBJ>>;
+      }
+  ],
+has light;
+
+!----------------------------------------
+! Fore & aft decks
+!----------------------------------------
+Object "deck"
+with
+  name 'deck',
+  article "the",
+  description "The deck is kitted out with all the things you'd expect to find on a sailing ship, but nothing that looks like it would be of any use to you.",
+  found_in room25 room31,
+has scenery;
+
+!----------------------------------------
+! Pirate ship
+!----------------------------------------
+Object "ship"
+with
+  name 'ship',
+  description "It's a brigantine with square sails on the fore mast and gaff sails on the main mast, but the sails are furled at the moment.",
+  found_in room24 room25 room31,
+has scenery;
+
+!----------------------------------------
+! Barnaby
+!----------------------------------------
+Object barnaby "Barnaby" room25
+with
+  name 'barnaby',
+  description "Barnaby is a scruffy-looking pirate with tangled black and grey hair, an unkempt beard and rings through his ear lobes.",
+has animate proper;
+
+!----------------------------------------
+! Main mast
+!----------------------------------------
+Object "main mast"
+with
+  name 'main' 'mast',
+  article "the",
+  description
+  [;
+    print "The main mast is in the middle of the ship, just to the ";
+    if (self in room25)
+      print "fore";
+    else
+      print "aft";
+    " of where you're currently standing. This is where the gaff sails are rigged, but they're furled at the moment.";
+  ],
+  before
+  [;
+    Climb, Enter:
+      "You can't climb the mast itself, you have to use the ropes.";
+  ],
+  found_in room25 room31,
+has static;
+
+!----------------------------------------
+! Gaff sails
+!----------------------------------------
+Object "gaff sails"
+with
+  name 'gaff' 'sail' 'sails//p',
+  article "the",
+  description "The gaff sails are rigged on the main mast, but they're furled at the moment.",
+  before
+  [;
+    Open:
+      "You would need a few able-bodied sailors to do that. You can't do it by yourself.";
+  ],
+  found_in room25 room31,
+has openable pluralname scenery;
+
+!----------------------------------------
+! Fore mast
+!----------------------------------------
+Object "fore mast"
+with
+  name 'fore' 'mast',
+  article "the",
+  description "The fore mast is towards the bow of the ship. This is where the square sails are rigged, but they're furled at the moment.",
+  before
+  [;
+    Climb, Enter:
+      "You can't climb the mast itself, you have to use the ropes.";
+  ],
+  found_in room25 room31,
+has static;
+
+!----------------------------------------
+! Square sails
+!----------------------------------------
+Object "square sails"
+with
+  name 'square' 'sail' 'sails//p',
+  article "the",
+  description "The square sails are rigged on the fore mast, but they're furled at the moment.",
+  before
+  [;
+    Open:
+      "You would need a few able-bodied sailors to do that. You can't do it by yourself.";
+  ],
+  found_in room25 room31,
+has openable pluralname scenery;
+
+!----------------------------------------
+! Ropes and rigging
+!----------------------------------------
+Object "ropes and rigging"
+with
+  name 'rope' 'ropes//p' 'rigging',
+  description "You're surrounded by all sorts of ropes and rigging that you don't understand. You had no idea just how many ropes could be on a single ship.",
+  before
+  [;
+    Climb, Enter:
+      "You're not a monkey. Leave all the climbing to the sailors.";
+  ],
+  found_in room25 room31,
+has pluralname static;
+
+!----------------------------------------
+! Captain's cabin
+!----------------------------------------
+Object "captain's cabin" room25
+with
+  name 'captain^s' 'cabin',
+  article "the",
+  description "You'll have to enter it to see what's inside.",
+has scenery;
+
+!----------------------------------------
+! Cabin door
+!----------------------------------------
+Object cabin_door "cabin door"
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'cabin' && NextWord() == 'door')
+      return 2;
+    if (nw == 'door')
+      return 1;
+    return 0;
+  ],
+  article "the",
+  description
+  [;
+    print "The cabin door has a circular window in it. The door is currently ";
+    if (self has open)
+      "open.";
+    else
+      "closed.";
+  ],
+  door_dir
+  [;
+    if (self in room25)
+      return s_to;
+    else
+      return n_to;
+  ],
+  door_to
+  [;
+    if (self in room25)
+      return room26;
+    else
+      return room25;
+  ],
+  found_in room25 room26,
+has door openable scenery;
+
+!----------------------------------------
+! Cabin door window
+!----------------------------------------
+Object "circular window"
+with
+  name 'circular' 'window' 'porthole',
+  description
+  [;
+    print "It's a small circular window, somewhat like a porthole. The glass is frosted";
+    if (cabin_door hasnt open)
+    {
+      print ", but when you peer through, you can faintly make out ";
+      if (self in room25)
+        "the captain asleep on his bunk.";
+        else
+        "the aft deck and the main mast.";
+    }
+    ".";
+  ],
+  found_in room25 room26,
+has scenery;
+
+!========================================
+! Room 26: Captain's Cabin
+!========================================
+Object room26 "Captain's Cabin"
+with
+  description "The captain's cabin is dark, dingy and somewhat confined. It sports some garish decorations, no doubt plundered from various pirating exploits. The only exit is the door to the fore side.",
+  n_to
+  [;
+    if (barnaby in self && brenda notin self)
+      "Barnaby blocks the door. ~You ain't goin' nowhere 'til the captain's finished with ya.~";
+    else
+      return cabin_door;
+  ],
+  out_to
+  [;
+    <<Go FAKE_N_OBJ>>;
+  ],
+  before
+  [;
+    Exit:
+      if (noun == nothing)
+        <<Go FAKE_N_OBJ>>;
+    Smell:
+      "It smells a trifle musty, as though from damp clothing.";
+  ],
+  after
+  [;
+    Go:
+      if (cutter hasnt general)
+      {
+        if (chest notin player)
+        {
+          <Look>;
+          if (room27 has visited)
+          {
+            deadflag = 1;
+            "^~You again! Where's me treasure?~ He looks you over and sees that you don't have it. ~You're tryin' me patience, boy. Barnaby, feed 'im to the sharks!~";
+          }
+          print "^Captain Cutter addresses you. ~Have you come to return me treasure?~ He looks you over. ~You don't have it! Where is it? Barnaby, throw him in the brig! I'm going to have a snooze. If the treasure ain't returned by sunset, we'll hang him from the yard arm.~^^";
+          give cutter general;
+          give cabin_door ~open;
+          move barnaby to room25;
+          PlayerTo(room27, 2);
+          rtrue;
+        }
+        <Look>;
+        move chest to cutter;
+        print "^~Ah, you've come to return me treasure.~ He grabs it off you, feels the weight and ";
+        if (children(chest) == 0)
+        {
+          deadflag = 1;
+          print "immediately realises it's empty. ";
+        }
+        if (pebbles in chest && pebbles.number < 36)
+        {
+          deadflag = 1;
+          print "immediately realises that it's too light. ";
+        }
+        if (pebbles in chest && pebbles.number > 36)
+        {
+          deadflag = 1;
+          print "immediately realises that it's too heavy. ";
+        }
+        if (deadflag == 1)
+        {
+          if (chest has locked)
+            print "He grabs the key from around his neck and tries to unlock the chest, but the key won't work. ";
+          else
+            print "He sees that the chest is unlocked, opens it and sees that it's full of pebbles. ";
+          "~You thieving bastard! You stole my treasure. Barnaby, have him hung, drawn and quartered!~";
+        }
+        give brenda moved;
+        move brenda to self;
+        brenda.state = 3;
+        StartDaemon(brenda);
+        print "smiles with satisfaction. He gives it a shake just to make sure and hears the ";
+        if (pebbles in chest)
+          print "pebbles";
+        else
+          print "coins";
+        " rattling around inside. ~I'm a man of my word. Barnaby, get the girl!~ Barnaby runs off and returns a few minutes later with Brenda in tow. ~You're free to go.~";
+      }
+  ],
+has light;
+
+!----------------------------------------
+! Captain's cabin
+!----------------------------------------
+Object "captain's cabin" room26
+with
+  name 'captain^s' 'cabin',
+  article "the",
+  description "It's dark, confined and cluttered with decorations.",
+has scenery;
+
+!----------------------------------------
+! Decorations & ornaments
+!----------------------------------------
+Object "decorations" room26
+with
+  name 'decoration' 'decorations//p' 'ornament' 'ornaments//p',
+  description "If the decorations are anything to go by, the captain is a well-travelled man. There are decorations and ornaments from Africa, the Bahamas and the Orient.",
+has pluralname scenery;
+
+!----------------------------------------
+! Captain Cutter
+!----------------------------------------
+! general = asleep
+Object cutter "Captain Cutter" room26
+with
+  name 'captain' 'cutter',
+  description
+  [;
+    if (gold_key in nothing)
+      move gold_key to self;
+    print "Captain Cutter has a thin face that looks like a skull adorned with thick curly brown hair. ";
+    if (self has general)
+      print "He is currently asleep on his bunk. ";
+    print "You can see a ";
+    if (gold_key in self)
+      print "gold";
+    else
+      print "brass";
+    " key around his neck.";
+  ],
+  life
+  [;
+    Ask:
+      if (self has general)
+        "He responds with a snore.";
+      switch (second)
+      {
+        'barnaby':
+          "~That's 'im there. 'e's me second mate. Why do you ask?~";
+        'brenda':
+          if (brenda hasnt moved)
+            "~You mean the tavern wench? She's in the brig. You can 'ave 'er back when you return me treasure.~";
+          else
+            "~You've got 'er. Now begone with ya before I change me mind an' 'ave you flogged.~";
+        'captain', 'cutter', 'himself':
+          "He grits his teeth and says, ~I'm the meanest, toughest pirate that ever sailed the seven seas. So you'd better get me treasure or I'll 'ave ya keel-hauled.~";
+        'harold':
+          "~'e's the one what was s'posed to 'ide me treasure, but 'e says 'e don't know where it is. I don't believe 'im.~";
+        'jerome':
+          "~I don't know any Jerome.~";
+        'jim', 'me', 'myself', 'self':
+          "~I don't know you from Adam.~";
+        'isaac', 'samuel':
+          "~'e's one of the ones that went ashore with 'arold to'ide me treasure.~";
+        'pirate', 'pirates//p':
+          "~We ain't pirates. We're privateers.~";
+        'treasure':
+          "~I've got me treasure, so get out of 'ere before I change me mind an' 'ang you from the yard arm.~";
+        default:
+          "~Why are you askin' all these questions? You should be out lookin' for me treasure.~";
+      }
+    Give:
+      if (self has general)
+        "You can't give him anything while he's asleep.";
+      "~The only thing I'm interested in is me treasure.~";
+    Help:
+      if (self has general)
+        "You can't help him while he's asleep.";
+      if (chest notin self)
+        "~If you wanna help, you can give me the treasure, otherwise I'll have ya walk the plank.~";
+      "~I've got me treasure. I don't need ya help.~";
+    Talk:
+      if (self has general)
+        "You're not going to get much of a response while he's asleep.";
+      "~I don't have time to yarn.~";
+    WakeOther:
+      if (self has general)
+        "Are you mad? If you wake him, he'll surely throw you back in the brig...or worse.";
+      "He's not asleep.";
+  ],
+has animate proper transparent;
+
+!----------------------------------------
+! Gold key
+!----------------------------------------
+Object gold_key "gold key"
+with
+  name 'gold' 'key',
+  description "It's a small gold key, about two inches long.",
+  before
+  [;
+    Take:
+      if (self in cutter)
+        "If you take the key, the captain will certainly know that he's been robbed. You would would need to replace it with a similar key.";
+    Swap:
+      if (self notin cutter)
+        "You've already done that.";
+      if (cutter hasnt general)
+        "You can't do that while he's awake.";
+      if (second == nothing && brass_key in player)
+      {
+        print "(with the brass key)^";
+        <<Swap self brass_key>>;
+      }
+      if (second == nothing)
+        "You have nothing to swap it with.";
+      if (second ~= brass_key)
+        "You can't swap the gold key with ", (the)second, ", as they aren't similar and the captain would notice.";
+      move brass_key to cutter;
+      move gold_key to player;
+      "You carefully remove the gold key from around the captain's neck, being careful not to wake him, and replace it with the brass key. They're a pretty close match.";
+  ],
+has;
+
+!----------------------------------------
+! Bunk
+!----------------------------------------
+Object "bunk" room26
+with
+  name 'bunk' 'velvet' 'covering' 'coverings//p',
+  description "The bunk is to the aft and adorned with fancy velvet coverings that would be fit for a king or queen.",
+has static supporter;
+
+!----------------------------------------
+! Writing desk
+!----------------------------------------
+Object writing_desk "writing desk" room26
+with
+  name 'writing' 'desk',
+  description "The writing desk to the port side is covered with assorted writing materials.",
+has static supporter;
+
+!----------------------------------------
+! Writing materials
+!----------------------------------------
+Object "writing materials" writing_desk
+with
+  parse_name
+  [ i;
+    while (NextWord() == 'writing' or 'material' or 'materials//p' or 'quill' or 'quills//p' or 'bottle' or 'bottles//p' or 'ink' or 'well' or 'sheet' or 'sheets//p' or 'blank' or 'paper')
+      i++;
+    return i;
+  ],
+  description "Let's see. There are various quills, bottles of ink, an ink well and scattered sheets of blank paper.",
+  before
+  [;
+    Take:
+      "They're not yours. Leave them alone.";
+  ],
+has pluralname;
+
+!----------------------------------------
+! Map table
+!----------------------------------------
+Object map_table "map table" room26
+with
+  name 'map' 'table',
+  description "The map table is to the starboard side of the cabin and covered with maps, obviously.",
+has static supporter;
+
+!----------------------------------------
+! Maps
+!----------------------------------------
+Object "maps" map_table
+with
+  name 'maps//p',
+  description "They appear to be maps of the seas around the Bahamas.",
+  before
+  [;
+    Read:
+      "You're a helping hand in The Red Anchor, not a cartographer.";
+    Take:
+      "They're not yours. Leave them alone.";
+  ],
+has pluralname;
+
+!========================================
+! Room 27: Cell
+!========================================
+Object room27 "Cell"
+with
+  description "You're in a small cell in the bowels of the ship. It really stinks. The cell door is to the port and the hull is to the starboard. Brenda is in the adjacent cell to the fore.",
+  w_to cell_door,
+  out_to cell_door,
+  before
+  [;
+    Exit:
+      if (noun == nothing)
+        <<Go FAKE_OUT_OBJ>>;
+    Listen:
+      "You can hear the creaking timbers of the ship.";
+    Smell:
+      "It stinks. The bilge must be nearby.";
+  ],
+has light;
+
+!----------------------------------------
+! Cell
+!----------------------------------------
+Object "cells"
+with
+  name 'cell' 'cells//p' 'gaol' 'jail',
+  article "two",
+  description "The cells are surrounded by bars on three sides with the hull of the ship forming the fourth side.",
+  found_in room27 room28,
+has scenery;
+
+!----------------------------------------
+! Ship
+!----------------------------------------
+Object "ship"
+with
+  name 'ship',
+  description "You'd be able to see it better from the top deck, if only you can get out of here.",
+  found_in room27 room28 room29 room30,
+has scenery;
+
+!----------------------------------------
+! Bowels of the pirate ship
+!----------------------------------------
+Object "bowels of the pirate ship" room27
+with
+  name 'bowel' 'bowels//p',
+has scenery;
+
+!----------------------------------------
+! Bars
+!----------------------------------------
+Object "bars" room27
+with
+  name 'bar' 'bars//p',
+  description
+  [;
+    print "The bars are cold and damp to the touch. You inspect them closely and give them a shake. They're very strong.";
+    if (cell_door has locked)
+      print " There's no way you'll be breaking out of this cell.";
+    "";
+  ],
+has pluralname scenery;
+
+!----------------------------------------
+! Hull
+!----------------------------------------
+Object "hull" room27
+with
+  name 'hull',
+  article "the",
+  description "It's made from wide, overlapping planks sealed with tar.",
+has scenery;
+
+!----------------------------------------
+! Cell door
+!----------------------------------------
+Object cell_door "cell door" room27
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'cell' && NextWord() == 'door')
+      return 2;
+    if (nw == 'door')
+      return 1;
+    return 0;
+  ],
+  description
+  [;
+    print "The cell door consists of vertical bars and a large plate with a keyhole for the lock. The door is currently ";
+    if (self has open)
+      "open.";
+    else
+      "closed.";
+  ],
+  door_dir
+  [;
+    if (self in room27)
+      return w_to;
+    else
+      return e_to;
+  ],
+  door_to
+  [;
+    if (self in room27)
+      return room28;
+    else
+      return room27;
+  ],
+  before
+  [;
+    Unlock:
+      if (self hasnt locked)
+        "It's already unlocked.";
+      if (second == nothing && brass_key in player)
+      {
+        print "(with the brass key)^";
+        <<Unlock self brass_key>>;
+      }
+      if (second == nothing && bone in player)
+      {
+        print "(with the bone)^";
+        <<Unlock self bone>>;
+      }
+      if (second == nothing)
+        "You'll need something to unlock it with.";
+      if (second == brass_key)
+        "The brass key is too small to fit the lock.";
+      if (second == knife)
+        "The blade of the knife is too wide to fit in the lock. You need something smaller.";
+      if (second == bone)
+        "You can't unlock the cell door with the bone, although you could try picking the lock with it.";
+      "You can't unlock the cell door with ", (the)second, ".";
+  ],
+  found_in room27 room28,
+has door lockable locked openable scenery;
+
+!----------------------------------------
+! Lock
+!----------------------------------------
+Object "lock" room27
+with
+  name 'lock' 'keyhole' 'plate',
+  description "It's made to take a large iron key.",
+  before
+  [;
+    Insert:
+      if (noun == brass_key)
+        "Your key is too small to fit the lock.";
+      if (noun ~= bone)
+        "That won't fit in the lock.";
+      <<Pick self bone>>;
+    Pick:
+      if (second == nothing && bone in player)
+      {
+        print "(with the bone)^";
+        <<Pick self bone>>;
+      }
+      if (second == nothing)
+        "You'll have to tell me what to pick the lock with.";
+      if (second ~= bone)
+        "You can't pick the lock with that.";
+      give cell_door ~locked;
+      move bone to limbo;
+      "You insert the bone in the lock and wiggle it about until you hear a click. It's unlocked! Brenda gives a squeal. ~Nice work, Jim.~ The bone breaks as you pull it out of the lock, so you throw it away.";
+  ],
+has container open scenery;
+
+!----------------------------------------
+! Brenda
+!----------------------------------------
+! self.state 0 = Haven't talked to her
+! self.state 1 = Have talked to her, but haven't asked her about her idea
+! self.state 2 = Have asked her about her idea
+! self.state 3 = Rescued, but still aboard ship
+! self.state 4 = Rescued and off ship
+Object brenda "Brenda"
+with
+  parse_name
+  [ i;
+    while (NextWord() == 'boney' or 'brenda' or 'daughter' or 'waitress' or 'wench')
+      i++;
+    return i;
+  ],
+  description "She's a very pretty girl with thick, wavy brown hair. She's very skinny, though. The patrons in the pub call her 'Boney Brenda'. She doesn't mind. She says she'd rather be thin than fat.",
+  life
+  [;
+    Ask:
+      switch (second)
+      {
+        'brenda':
+          "~I'm okay, Jim. The pirates are brutes, but the captain says he'll feed them to the sharks if they so much as hurt a hair on my head, so I feel relatively safe while he's alive.~";
+        'captain', 'cutter':
+          "~He's been nice enough, I s'pose. He told me about the gold key he wears around his neck. No one can open his treasure chest without that key. He's really cocky about it.~";
+        'cell':
+          "~The sooner I get out of this cell, the better.~";
+        'door', 'lock', 'keyhole', 'keys', 'plate':
+          if (cell_door has locked)
+            "~I think Barnaby has the keys. Maybe you could pick the lock or something.~";
+          "~It's unlocked now. Go and find the treasure and come back for me later.~";
+        'harold':
+          "~Captain Cutter thinks he's got his treasure, but I'm sure he doesn't. The pirates gave him quite a beating. I hope he's okay.~ You assure her that he is.";
+        'gold', 'key':
+          "~You mean the captain's key? It's a small gold key about so big.~ She holds her fore finger and thumb about two inches apart.";
+        'idea':
+          self.state = 2;
+          "~The captain wears the key to the treasure chest around his neck. If you can replace it with another key, he'll be none the wiser. Then you can open the treasure chest and replace the treasure with something of the same weight and he'll never know.~";
+        'isaac':
+          "~Isaac is the nice man that runs the lighthouse. He leads a very lonely life, so I take him little treats every so often.~";
+        'jerome':
+          "~Jerome owns the warehouse. I think he might be a teetotaller, because he hardly ever comes into the pub, except to talk to dad about shipments and things.~";
+        'jim', 'me', 'myself', 'self':
+          "~I like you Jim, but if you can rescue me, I'll like you even more.~";
+        'pirate', 'pirates//p':
+          "~Yuck!~ Brenda gives an involuntary shudder. ~They're rough and they're ugly and they smell like seals.~";
+        'samuel':
+          "~You know Samuel. He's one of the regulars at the pub. He's the one that's always singing sea shanties.~";
+        'treasure', 'chest', 'pieces-of-eight':
+          "~I heard the captain talking about pieces-of-eight. I think that might be what's in his treasure.~";
+        default:
+          print "~I don't know anything about that. Let's just worry about ";
+          switch (self.state)
+          {
+            0 to 2: "getting out of here.~";
+            3: "getting off the ship.~";
+            4: "going home.~";
+          }
+      }
+    Help:
+      print "~If you want to help, you can ";
+      if (self.state < 3)
+        "get me out of here.~";
+      else
+        "take me back home.~";
+    Show:
+      if (noun == bone)
+        "~This is no time to be picking bones, Jim. You'd be better off picking the lock.~";
+    Talk:
+      switch (self.state)
+      {
+        0: self.state = 1;
+          "~I have an idea, Jim. Why don't you ask me about it?~";
+        1: "~Why don't you ask me about my idea?~";
+        2: "~What do you think? Good idea, huh?~";
+        3: "~Let's get out of here.~";
+        4: "~Take me home, Jim.~";
+      }
+  ],
+  before
+  [;
+    Take:
+      if (self.state < 3)
+        "That might be a bit difficult, considering she's locked in the next cell.";
+      else
+        "There's no need. She'll follow you now that she's free.";
+  ],
+  daemon
+  [;
+    if (self.time_left == 0)
+      print "^Brenda says, ~You lead the way, I'll follow.~^";
+    else
+    {
+      print "^Brenda says, ~Come on Jim. ";
+      switch (self.time_left)
+      {
+        1: print "Let's go";
+        2: print "I want to get back to dad";
+        3: print "I've seen enough pirates for one day";
+        4: print "I want to go home";
+      }
+      print ".~^";
+    }
+    self.time_left++;
+    if (self.time_left == 5)
+      StopDaemon(self);
+  ],
+  found_in
+  [;
+    if (self has moved || location == room27 or room28)
+      rtrue;
+  ],
+  state 0,
+  time_left 0,
+has animate female proper;
+
+!----------------------------------------
+! Pile of straw
+!----------------------------------------
+Object straw "pile of straw" room27
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'pile')
+      if (NextWord() == 'of' && NextWord() == 'straw')
+        return 3;
+      else
+        return 1;
+    if (nw == 'straw')
+      if (NextWord() == 'pile')
+        return 2;
+      else
+        return 1;
+    return 0;
+  ],
+  description
+  [;
+    print "It's a pile of straw for the bedding in your cell.";
+    if (self has light)
+      print " It's now burning and emitting a thick plume of smoke.";
+    "";
+  ],
+  before
+  [;
+    Burn:
+      if (self has light)
+        "It's already burning.";
+      if (second == nothing && tinderbox in player)
+      {
+        print "(with the tinderbox)^";
+        <<Burn self tinderbox>>;
+      }
+      if (second ~= tinderbox)
+        "You can't light the straw with that.";
+      if (self in player)
+        "If you light the straw while you're carrying it, you'll surely burn yourself.";
+      if (location == room27 or room28)
+        "If you light it here, you and Brenda will choke from the smoke, as there is no ventilation.";
+      give self light;
+      StartDaemon(self);
+      "You strike the steel on the flint and the sparks light the tinder. You then light the straw and blow the tinder out.";
+    LookUnder, Pull, Push, Search:
+      if (bone in nothing)
+      {
+        move bone to location;
+        "You find a bone under the straw.";
+      }
+    Take:
+      if (self has light)
+        "Are you crazy? It's on fire!";
+  ],
+  after
+  [;
+    Take:
+      if (bone in nothing)
+      {
+        move bone to location;
+        "You find a bone under the straw.";
+      }
+  ],
+  daemon
+  [;
+    self.time_left++;
+    if (self.time_left > 2)
+    {
+      if (barnaby in room31 && self in room30)
+      {
+        move barnaby to room30;
+        print "^You hear Barnaby climbing down the steps from the fore deck to the fore hold.^";
+      }
+      if (barnaby in room25 && self in room29)
+      {
+        move barnaby to room29;
+        print "^You hear Barnaby climbing down the steps from the aft deck to the aft hold.^";
+      }
+      if (barnaby in room25 && self in room30 or room31)
+      {
+        move barnaby to room31;
+        print "^You hear Barnaby running from the aft deck to the fore deck.^";
+      }
+      if (barnaby in location)
+      {
+        deadflag = 3;
+        "^~Oi, what are you doin' out o' your cell?~ He grabs you by the scruff of the neck and escorts you back to your cell. There's no escaping this time.";
+      }
+    }
+  ],
+  time_left 0,
+has;
+
+!----------------------------------------
+! Bone
+!----------------------------------------
+Object bone "bone"
+with
+  name 'long' 'thin' 'bone',
+  description "It's a long thin bone, probably a leftover from the previous occupant's meal. Either that, or the previous occupant's finger.",
+has;
+
+!========================================
+! Room 28: Brig
+!========================================
+Object room28 "Brig"
+with
+  description "The brig is nothing more than a narrow boardwalk running from the fore to the aft along this part of the ship. There are two cells on the starboard side. Brenda is in the fore cell and the aft cell is empty.",
+  n_to room29,
+  s_to "You'd better not go any further towards the stern. It sounds like there are pirates in that direction.",
+  e_to cell_door,
+  in_to cell_door,
+  before
+  [;
+    Listen:
+      "You can hear voices to the stern and the creaking timbers of the ship.";
+    Smell:
+      "It stinks. The bilge must be nearby.";
+  ],
+has light;
+
+!----------------------------------------
+! Brig
+!----------------------------------------
+Object "brig" room28
+with
+  name 'brig' 'boardwalk',
+  article "the",
+has scenery;
+
+!========================================
+! Room 29: Aft Hold
+!========================================
+Object room29 "Aft Hold"
+with
+  description "You're in the aft hold, which is full of barrels of assorted goods. The sun shines in from a manhole overhead. You can go further to the fore or aft or climb up the steps to the manhole.",
+  n_to room30,
+  s_to room28,
+  u_to
+  [;
+    if (barnaby in room25)
+      "You poke your head through the manhole and see that Barnaby is on the aft deck. You'll need to create a diversion to get him out of the way.";
+    else
+      return room25;
+  ],
+  out_to
+  [;
+    <<Go FAKE_U_OBJ>>;
+  ],
+  before
+  [;
+    Exit:
+      if (noun == nothing)
+        <<Go FAKE_U_OBJ>>;
+    Listen:
+      "You can only hear the creaking timbers of the ship.";
+    Smell:
+      "The air smells cleaner here than in the brig.";
+    Yell:
+      if (brenda hasnt moved)
+      {
+        deadflag = 3;
+        "You hear Barnaby approaching. ^~Oi, what are you doin' out o' your cell?~ He grabs you by the scruff of the neck and escorts you back to your cell. There's no escaping this time.";
+      }
+  ],
+has light;
+
+!----------------------------------------
+! Hold
+!----------------------------------------
+Object "hold"
+with
+  name 'hold',
+  description "This is where the cargo and provisions are stored.",
+  found_in room29 room30,
+has scenery;
+
+!----------------------------------------
+! Cargo
+!----------------------------------------
+Object "cargo"
+with
+  parse_name
+  [ i;
+    while (NextWord() == 'cargo' or 'barrel' or 'barrels//p' or 'provision' or 'provisions//p')
+      i++;
+    return i;
+  ],
+  article "the",
+  description "It's mostly barrels of assorted provisions for the journey to sea.",
+  found_in room29 room30,
+has scenery;
+
+!----------------------------------------
+! Steps below manhole
+!----------------------------------------
+Object "steps below the manhole"
+with
+  name 'manhole' 'step' 'steps//p',
+  description
+  [;
+    print "The steps below the manhole provide access to the deck ";
+    if (self in room25 or room31)
+      "below.";
+    else
+      "above.";
+  ],
+  before
+  [;
+    Climb, Enter:
+    if (self in room25 or room31)
+      <<Go FAKE_D_OBJ>>;
+    else
+      <<Go FAKE_U_OBJ>>;
+  ],
+  found_in room25 room29 room30 room31,
+has pluralname scenery;
+
+!----------------------------------------
+! Beam of sunlight
+!----------------------------------------
+Object "beam of sunlight"
+with
+  parse_name
+  [ nw;
+    nw = NextWord();
+    if (nw == 'beam')
+      if (NextWord() == 'of' && NextWord() == 'sun' or 'sunlight')
+        return 3;
+      else
+        return 1;
+    if (nw == 'sun' or 'sunlight')
+      if (NextWord() == 'beam')
+        return 2;
+      else
+        return 1;
+    return 0;
+  ],
+  description "The sunlight streams in from a manhole in the top deck.",
+  found_in room29 room30,
+has scenery;
+
+!========================================
+! Room 30: Fore Hold
+!========================================
+Object room30 "Fore Hold"
+with
+  description "You're in the fore hold, which is full of barrels of assorted goods. The sun shines in from a manhole overhead. You can go further to the fore or aft or climb up the steps to the manhole.",
+  n_to "You'd better not go any further towards the bow, as it sounds like there are pirates in that direction.",
+  s_to room29,
+  u_to room31,
+  out_to room31,
+  before
+  [;
+    Exit:
+      if (noun == nothing)
+        <<Go FAKE_OUT_OBJ>>;
+    Listen:
+      "You can hear laughing and shouting from the bow and the creaking timbers of the ship.";
+    Smell:
+      "The air smells cleaner here than in the brig.";
+    Yell:
+      if (brenda hasnt moved)
+      {
+        deadflag = 3;
+        "You hear Barnaby approaching. ^~Oi, what are you doin' out o' your cell?~ He grabs you by the scruff of the neck and escorts you back to your cell. There's no escaping this time.";
+      }
+  ],
+has light;
+
+!========================================
+! Room 31: Fore Deck
+!========================================
+Object room31 "Fore Deck"
+with
+  description "You're on the fore deck of the pirate ship surrounded by all sorts of ropes and rigging that you don't understand. You can see the bow of the ship beyond the fore mast and the main mast to the aft with the aft deck beyond it. Some steps go down through a manhole to the deck below.",
+  n_to "There's nothing of interest in that direction apart from the figurehead and bowsprit.",
+  s_to
+  [;
+    if (barnaby in room25)
+      "When you step out from behind the mast, you see that Barnaby is on the aft deck. You'll need to create a diversion to get him out of the way.";
+    else
+      return room25;
+  ],
+  d_to room30,
+  before
+  [;
+    Listen:
+      "You hear the sound of waves lapping against the side of the ship.";
+    Smell:
+      "You smell the salty seawater from the harbour.";
+    Yell:
+      if (brenda hasnt moved)
+      {
+        deadflag = 3;
+        "You hear Barnaby approaching. ^~Oi, what are you doin' out o' your cell?~ He grabs you by the scruff of the neck and escorts you back to your cell. There's no escaping this time.";
+      }
+  ],
+has light;
+
+!----------------------------------------
+! Figurehead
+!----------------------------------------
+Object "figurehead" room31
+with
+  name 'figurehead' 'woman',
+  description "It appears to be the carved head of a woman.",
+has scenery;
+
+!----------------------------------------
+! Bowsprit
+!----------------------------------------
+Object "bowsprit" room31
+with
+  name 'bowsprit',
+  article "the",
+  description "It's a spar extending forward from the ship's prow.",
+has scenery;
+
+!========================================
+! Limbo
+!========================================
+Object limbo "Limbo";
+
+!========================================
+! Other routines
+!========================================
+[ PrintButtons code;
+  code = 0;
+  font off;
+  if (lock.button1)
+  {
+    code = code + 1;
+    print "O";
+  }
+  else
+    print "-";
+  print " ";
+  if (lock.button2)
+  {
+    code = code + 2;
+    print "O";
+  }
+  else
+    print "-";
+  print " ";
+  if (lock.button3)
+  {
+    code = code + 4;
+    print "O";
+  }
+  else
+    print "-";
+  print " ";
+  if (lock.button4)
+  {
+    code = code + 8;
+    print "O";
+  }
+  else
+    print "-";
+  print " ";
+  if (lock.button5)
+  {
+    code = code + 16;
+    print "O";
+  }
+  else
+    print "-";
+  print " ";
+  if (lock.button6)
+  {
+    code = code + 32;
+    print "O";
+  }
+  else
+    print "-";
+  print "^1 2 3 4 5 6^";
+  font on;
+  return code;
+];
+
+!========================================
+! Print rules
+!========================================
+![ IsntOrArent obj;
+!  if (obj has pluralname || obj == player)
+!    print "aren't";
+!  else
+!    print "isn't";
+!];
+
+!========================================
+! Grammar
+!========================================
+[ ThirdNoun temp;
+  temp = ParseToken(TT_OBJECT, NOUN_OBJECT);
+  if (temp == GPR_FAIL or GPR_REPARSE)
+    return temp;
+  third = temp;
+  return GPR_PREPOSITION;
+];
+
+Extend 'ask' first
+  * 'about' topic -> AskAbout;
+
+Extend 'blow'
+  * 'out' noun -> Extinguish
+  * noun 'out' -> Extinguish;
+
+Extend 'climb'
+  * 'in'/'inside'/'on' noun -> Enter;
+
+Extend 'empty'
+  * noun 'in'/'inside' noun -> EmptyT;
+
+Extend only 'enter'
+  * -> GoIn;
+
+Extend 'fill'
+  * noun 'with' noun -> Insert reverse;
+
+Extend only 'go'
+  * 'inside' -> GoIn;
+
+Extend 'jump'
+  * 'in'/'inside' noun -> Enter
+  * 'overboard' -> Swim;
+
+Extend 'look'
+  * 'under' noun -> LookUnder;
+
+Extend only 'pick'
+  * noun -> Pick
+  * noun 'with' held -> Pick;
+
+Extend only 'press' 'push'
+  * number -> PushButton
+  * number 'on' noun -> PushButton
+  * 'button' number -> PushButton
+  * 'button' number 'on' noun -> PushButton;
+
+Extend 'put' first
+  * noun 'in'/'inside'/'into' noun -> Insert;
+
+Extend only 'put'
+  * 'out' noun -> Extinguish
+  * noun 'out' -> Extinguish;
+
+Extend 'read' first
+  * legible -> Read
+  * noun -> Read;
+
+Extend 'remove'
+  * number noun -> RemoveNumber
+  * number noun 'from' ThirdNoun -> RemoveNumber;
+
+Extend only 'shout' first
+  * -> Yell;
+
+Extend only 'switch'
+  * noun -> Swap
+  * noun 'for'/'with' -> Swap;
+
+Extend 'take'
+  * number noun -> RemoveNumber
+  * number noun 'from' ThirdNoun -> RemoveNumber;
+
+Extend only 'transfer'
+  * noun -> Swap
+  * noun 'for'/'with' -> Swap;
+
+!Extend 'unlock'
+!  * noun -> Unlock;
+
+Verb meta 'about' 'credits' 'info'
+  * -> About;
+
+Verb 'combine' 'join' 'overlay'
+  * noun -> Tie
+  * noun 'to'/'with' noun -> Tie;
+
+Verb 'count'
+  * noun -> Count;
+
+Verb 'extinguish' 'unlight'
+  * noun -> Extinguish;
+
+Verb 'help' 'aid' 'assist' 'comfort' 'tend'
+  * -> Help
+  * creature -> Help;
+
+Verb 'kick' = 'attack';
+
+Verb 'knock' 'rap' 'tap'
+  * noun -> Attack
+  * 'on' noun -> Attack;
+
+Verb 'place' = 'put';
+
+Verb 'reach' 'stretch'
+  * noun -> Reach
+  * 'for' noun -> Reach
+  * 'in'/'into' noun -> ReachIn;
+
+Verb 'row' 'paddle'
+  * noun -> Row;
+
+Verb 'sniff' = 'smell';
+
+Verb 'swap' 'change' 'exchange' 'replace' 'substitute' 'trade'
+  * noun -> Swap
+  * noun 'for'/'with' noun -> Swap;
+
+Verb 'talk' 'babble' 'chat' 'communicate' 'converse' 'gab' 'gossip'
+  * -> Talk
+  * creature -> Talk
+  * noun -> Talk
+  * 'to'/'with' creature -> Talk
+  * 'to'/'with' noun -> Talk
+  * 'to'/'with' creature 'about' topic -> Ask
+  * 'to'/'with' noun 'about' topic -> Ask;
+
+Verb 'unfurl' = 'open';
+
+Verb 'weigh' 'measure'
+  * noun -> Weigh
+  * noun 'with' noun -> PutOn;
+
+Verb 'yell' 'call' 'holler' 'scare' 'scream'
+  * -> Yell
+  * 'out' -> Yell;
+
+!========================================
+! Actions
+!========================================
+[ AboutSub;
+  "This game was written for PunyJam #1, 9 April - 3 May 2021. Under the rules of the jam, the description of the first room (the broom closet) was fixed and everything else was open slather. See https://itch.io/jam/punyjam1 for further details.^^Game design and coding by Garry Francis.^Play testing by Dee Cooke, Tristin Grizel Dean, Christopher Merriner and Joshua Wilson. Thanks guys and gals.";
+];
+
+[ AskAboutSub obj;
+  objectloop (obj in location)
+    if (obj ~= player && obj ~= barnaby && obj has animate)
+      <<Ask obj noun>>;
+  "There's no one here to ", (address)verb_word, " anything.";
+];
+
+[ CountSub;
+  if (ObjectIsUntouchable(noun))
+    return;
+  if (noun provides number)
+    "You count ", noun.number, " ", (name)noun, ".";
+  if (noun has pluralname)
+    "There are multiple ", (name)noun, ".";
+  "There's only one ", (name)noun, ".";
+];
+
+[ ExtinguishSub;
+  "You can't extinguish that.";
+];
+
+[ HelpSub;
+  if (noun == nothing)
+    "There's no help in this game. If you need help on how to play a text adventure, see the instructions on the game page.";
+  if (RunLife(noun, ##Help))
+    rtrue;
+  print_ret (The)noun, " doesn't need any help at the moment.";
+];
+
+[ LookUnderSub;
+  if (location == thedark)
+    "But it's dark.";
+  "You find nothing of interest.";
+];
+
+[ PickSub;
+  if (ObjectIsUntouchable(noun))
+    return;
+  "You can't pick that.";
+];
+
+[ PushButtonSub;
+  "There are no buttons here to ", (address)verb_word, ".";
+];
+
+[ ReachSub;
+  if (noun == nothing)
+    "You have a good stretch.";
+  if (ObjectIsUntouchable(noun))
+    return;
+  <<Touch noun>>;
+];
+
+[ ReachInSub;
+  if (noun == nothing)
+    "You'll have to tell me what you want to reach into.";
+  if (ObjectIsUntouchable(noun))
+    return;
+  if (noun hasnt container)
+    "You can't reach into ", (the)noun, ", because ", (ThatOrThose)noun, " ", (IsOrAre)noun, " not a container.";
+  if (noun hasnt open)
+    "You can't reach into ", (the)noun, ", because ", (ThatOrThose)noun, " ", (IsOrAre)noun, " not open.";
+  <<Touch noun>>;
+];
+
+[ ReadSub;
+  "There's nothing legible on ", (ThatOrThose)noun, ".";
+];
+
+[ RemoveNumberSub;
+  if (second == nothing)
+    "You'll have to tell me what you want to ", (address)verb_word, ".";
+  if (ObjectIsUntouchable(second))
+    rtrue;
+  if (~~(second provides number))
+    "You can't ", (address)verb_word, " anything from ", (the)second, ".";
+  if (noun <= second.number)
+  {
+    second.number = second.number - noun;
+    if (second.number == 0)
+      remove second;
+    if (second.after())
+      rtrue;
+    "You ", (address)verb_word, " ", noun, " ", (name)second, ".";
+  }
+  "You can't ", (address)verb_word, " that many, as there aren't that many.";
+];
+
+[ RowSub;
+  "You can't row that.";
+];
+
+[ SwapSub temp;
+  if (ObjectIsUntouchable(noun))
+    rtrue;
+  if (noun has scenery or static or animate)
+    "You can't move ", (the)noun, ".";
+  if (second == nothing)
+    "You'll have to tell me what to ", (address)verb_word, " it with.";
+  if (ObjectIsUntouchable(second))
+    rtrue;
+  if (second has scenery or static or animate)
+    "You can't move ", (the)second, ".";
+  temp = parent(noun);
+  move noun to parent(second);
+  move second to temp;
+  "You ", (address)verb_word, " ", (the)noun, " with ", (the)second, ".";
+];
+
+[ TalkSub;
+  if (noun == nothing)
+    "You start talking to no one in particular.";
+  if (noun == player)
+    "You start talking to yourself, but it's a one-sided conversation.";
+  if (RunLife(noun, ##Talk))
+    rtrue;
+  print (The)noun, " is not very talkative.";
+  "";
+];
+
+[ WeighSub;
+  if (~~(IndirectlyContains(location, scale)))
+    "You have nothing to weigh it with.";
+  <<PutOn noun scale>>;
+];
+
+[ YellSub;
+  "~Yaaaah!~";
+];
+
+End;

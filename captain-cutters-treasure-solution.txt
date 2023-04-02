@@ -1,0 +1,156 @@
+Captain Cutter's Treasure
+By Garry Francis
+For Z-code interpreters
+
+Solution by Garry Francis
+----------------------------------------
+This is a minimal solution. You'll need to EXAMINE lots of things for this solution to make sense. You should also TALK TO all the characters you meet and ASK them ABOUT anything interesting, including all the other characters.
+
+(X NOTE) (something's written on it)
+(READ NOTE) ('Return me treasure by sunset or the girl gets it. - Cutter')
+MOVE FABRIC (you find a calico bag)
+GET BAG (you find a mouse hole)
+(X HOLE) (it's too dark to see what's inside)
+(X DOOR) (it's closed)
+OPEN DOOR
+E (the pub has been trashed)
+(TALK TO HAROLD) (Captain Cutter and his crew stole the rum and took Brenda)
+(ASK ABOUT CUTTER) (he got Harold, Samuel & Isaac to hide his treasure)
+(ASK ABOUT SAMUEL) (he's one of the regulars)
+(ASK ABOUT ISAAC) (he's the lighthouse keeper)
+(ASK ABOUT BRENDA) (that's his daughter)
+(ASK ABOUT TREASURE) (Samuel and Isaac hid it)
+S
+GET RUM
+N
+E
+N (you hear singing from the alley)
+W
+(TALK TO SAMUEL)
+(ASK SAMUEL ABOUT ANYTHING) (he wants a drink)
+GIVE RUM TO SAMUEL (you can now ask him about stuff)
+(ASK ABOUT ISAAC)
+ASK ABOUT TREASURE (he throws translucent parchment on ground and passes out)
+GET PARCHMENT
+(X IT) (perhaps you could read it)
+(READ IT) (it has lots of horizontal lines)
+E
+N
+NE
+KNOCK ON DOOR (Isaac opens door and invites you in)
+N
+(TALK TO ISAAC)
+ASK ISAAC ABOUT TREASURE (he puts opaque parchment on table)
+GET OPAQUE PARCHMENT
+(X IT) (try reading it)
+(READ IT) (it has lots of vertical lines)
+PUT TRANSLUCENT PARCHMENT ON IT (becomes overlaid parchments)
+(READ PARCHMENTS) (it now says 'WAREHOUSE')
+GET LAMP (Isaac says there's oil for it upstairs)
+U
+GET OIL
+D
+S
+SW
+(TALK TO JEROME)
+(ASK JEROME ABOUT TREASURE) (he clams up)
+(SHOW PARCHMENT TO HIM) (he becomes very attentive)
+GIVE PARCHMENT TO JEROME (you can now warehouse, but we'll come back later)
+S
+S
+W
+W
+LIGHT LAMP WITH TINDERBOX
+X HOLE (you find a brass key)
+GET KEY
+E
+E
+S
+PUT PEBBLES IN BAG (or FILL BAG WITH PEBBLES) (you fill the bag with pebbles)
+N
+N
+N
+E
+D
+ROW BOAT
+U (Barnaby takes you to captain's cabin, then to cell in brig)
+(TALK TO BRENDA) (she has an idea)
+(ASK ABOUT IDEA) (captain wears key around his neck, swap key & swap treasure)
+GET STRAW (you find a bone)
+GET BONE
+PICK LOCK WITH BONE (cell door is unlocked)
+OPEN DOOR
+W
+N
+(U) (Barnaby is on deck, you need a diversion)
+DROP STRAW
+LIGHT IT WITH TINDERBOX
+N
+U (you hear Barnaby climbing down steps from aft deck to aft hold)
+S
+(X DOOR) (it has a circular window)
+(X WINDOW) (captain is asleep, so it's safe to enter)
+OPEN DOOR
+S
+X CAPTAIN (captain is asleep & wearing gold key around his neck)
+SWAP BRASS KEY WITH GOLD KEY
+N
+W
+ROW BOAT
+U
+W
+W
+W (there's a trapdoor overhead, but you can't reach it)
+N (there's a large crate to the west)
+N
+W
+W
+S
+PUSH CRATE (someone has written 'Code: 34' on floor under where crate was)
+N
+E
+PUSH CRATE (crate is now under trapdoor)
+GET ON CRATE
+OPEN TRAPDOOR
+U (lamp must be on to see in dark)
+(X BOX) (it has carvings of dragons around lock)
+(X LOCK) (it has 6 numbered buttons)
+PRESS 1
+PRESS 2
+PRESS 5
+PRESS 6 (buttons 3 & 4 are now up and box is unlocked)
+OPEN BOX (you find treasure chest)
+GET CHEST
+UNLOCK CHEST WITH KEY
+OPEN IT (you find some silver coins)
+EMPTY BAG
+PUT COINS IN BAG (or FILL BAG WITH COINS)
+WEIGH IT (coins weigh 45 ounces)
+GET IT
+EMPTY IT
+PUT PEBBLES IN BAG
+WEIGH IT (pebbles weigh 60 ounces, so reduce weight by 1/4 to match coins)
+REMOVE 12 PEBBLES (they now weigh 45 ounces)
+PUT PEBBLES IN CHEST
+CLOSE CHEST
+LOCK CHEST WITH KEY
+GET BAG
+PUT COINS IN BAG
+D
+GET OFF CRATE
+E
+S
+E
+E
+D
+ROW BOAT
+U (Barnaby takes you to captain's cabin, captain takes chest, Barnaby gets Brenda)
+N
+W
+ROW BOAT
+U
+W
+S
+S
+W
+***THE END***
