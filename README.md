@@ -12,9 +12,8 @@ You run your fingers through your hair and feel a nasty bump on the back of your
 
 "What the hell am I doing in the broom closet?"
 
-This is a traditional text adventure that was written for [PunyJam #1](https://itch.io/jam/punyjam1), 9 April to 3 May 2021. The game is hosted at [Captain Cutter's Treasure](https://warrigal.itch.io/captain-cutters-treasure).
+This is a traditional text adventure that was written for [PunyJam #1](https://itch.io/jam/punyjam1), 9 April to 3 May 2021.
 
 ## Release notes
 
 Release 1 was compiled with Inform 6 version 6.34 and the PunyInform library version 2.4. You may need to make changes if using later versions.
-
